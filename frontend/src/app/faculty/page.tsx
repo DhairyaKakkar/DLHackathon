@@ -31,14 +31,14 @@ function StatCard({
   iconColor: string;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-card p-5">
+    <div className="bg-white/[0.04] rounded-xl border border-white/[0.08] shadow-card p-5 hover:border-white/[0.14] transition-colors">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
           {label}
         </span>
         <Icon className={`w-4 h-4 ${iconColor}`} />
       </div>
-      <p className="text-2xl font-bold text-gray-900">{value}</p>
+      <p className="text-2xl font-bold text-white">{value}</p>
     </div>
   );
 }
@@ -47,41 +47,43 @@ function RiskCard({
   title,
   topics,
   icon: Icon,
-  iconBg,
+  iconGlow,
   iconColor,
+  badgeBg,
+  badgeText,
+  badgeBorder,
   emptyMsg,
 }: {
   title: string;
   topics: string[];
   icon: React.ComponentType<{ className?: string }>;
-  iconBg: string;
+  iconGlow: string;
   iconColor: string;
+  badgeBg: string;
+  badgeText: string;
+  badgeBorder: string;
   emptyMsg: string;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-card p-5">
+    <div className="bg-white/[0.04] rounded-xl border border-white/[0.08] shadow-card p-5 hover:border-white/[0.14] transition-colors">
       <div className="flex items-center gap-2 mb-3">
-        <div className={`w-7 h-7 rounded-lg ${iconBg} flex items-center justify-center`}>
+        <div
+          className="w-7 h-7 rounded-lg flex items-center justify-center"
+          style={{ background: iconGlow, border: `1px solid ${iconGlow.replace("15", "30")}` }}
+        >
           <Icon className={`w-4 h-4 ${iconColor}`} />
         </div>
-        <h3 className="text-sm font-semibold text-gray-700">{title}</h3>
+        <h3 className="text-sm font-semibold text-slate-300">{title}</h3>
       </div>
 
       {topics.length === 0 ? (
-        <p className="text-xs text-gray-400 italic">{emptyMsg}</p>
+        <p className="text-xs text-slate-600 italic">{emptyMsg}</p>
       ) : (
         <div className="flex flex-wrap gap-1.5">
           {topics.map((t) => (
             <span
               key={t}
-              className={`text-xs font-medium px-2 py-0.5 rounded-full ${iconBg} ${iconColor} border`}
-              style={{
-                borderColor: iconColor.includes("red")
-                  ? "#fecaca"
-                  : iconColor.includes("amber")
-                    ? "#fde68a"
-                    : "#c4b5fd",
-              }}
+              className={`text-xs font-medium px-2 py-0.5 rounded-full border ${badgeBg} ${badgeText} ${badgeBorder}`}
             >
               {t}
             </span>
@@ -95,7 +97,7 @@ function RiskCard({
 function MetricBar({ value }: { value: number }) {
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+      <div className="flex-1 h-1.5 bg-white/[0.08] rounded-full overflow-hidden">
         <div
           className={cn("h-full rounded-full", getMetricBarColor(value))}
           style={{ width: `${Math.max(2, value)}%` }}
@@ -118,7 +120,7 @@ export default function FacultyDashboardPage() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#09090f]">
       <Navbar
         backHref="/"
         backLabel="Home"
@@ -127,7 +129,7 @@ export default function FacultyDashboardPage() {
           <button
             onClick={() => refetch()}
             disabled={isFetching}
-            className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            className="p-2 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/[0.06] transition-colors"
             title="Refresh"
           >
             <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
@@ -149,10 +151,10 @@ export default function FacultyDashboardPage() {
           <div className="flex flex-col gap-6 animate-fade-in">
             {/* Header */}
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
+              <h1 className="font-display text-2xl font-bold text-white">
                 Cohort Analytics
               </h1>
-              <p className="text-sm text-gray-400 mt-0.5">
+              <p className="text-sm text-slate-500 mt-0.5">
                 {data.explanation}
               </p>
             </div>
@@ -184,7 +186,7 @@ export default function FacultyDashboardPage() {
                     : "—"
                 }
                 icon={BarChart3}
-                iconColor="text-green-400"
+                iconColor="text-emerald-400"
               />
             </div>
 
@@ -194,37 +196,46 @@ export default function FacultyDashboardPage() {
                 title="Low Retention Topics"
                 topics={data.low_retention_topics}
                 icon={TrendingDown}
-                iconBg="bg-red-50"
-                iconColor="text-red-500"
+                iconGlow="rgba(244,63,94,0.15)"
+                iconColor="text-red-400"
+                badgeBg="bg-red-500/10"
+                badgeText="text-red-400"
+                badgeBorder="border-red-500/25"
                 emptyMsg="No low-retention topics — great!"
               />
               <RiskCard
                 title="Transfer Failures"
                 topics={data.transfer_failure_topics}
                 icon={Shuffle}
-                iconBg="bg-purple-50"
-                iconColor="text-purple-500"
+                iconGlow="rgba(139,92,246,0.15)"
+                iconColor="text-violet-400"
+                badgeBg="bg-violet-500/10"
+                badgeText="text-violet-400"
+                badgeBorder="border-violet-500/25"
                 emptyMsg="No transfer failures — great!"
               />
               <RiskCard
                 title="Overconfidence Hotspots"
                 topics={data.overconfidence_hotspots}
                 icon={Target}
-                iconBg="bg-amber-50"
-                iconColor="text-amber-500"
+                iconGlow="rgba(245,158,11,0.15)"
+                iconColor="text-amber-400"
+                badgeBg="bg-amber-500/10"
+                badgeText="text-amber-400"
+                badgeBorder="border-amber-500/25"
                 emptyMsg="No overconfidence hotspots — great!"
               />
             </div>
 
             {/* DUS histogram */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-card p-6">
+            <div className="bg-white/[0.04] rounded-xl border border-white/[0.08] shadow-card p-6">
               <div className="flex items-center gap-2 mb-1">
                 <BarChart3 className="w-4 h-4 text-indigo-400" />
-                <h2 className="text-sm font-semibold text-gray-700">
+                <h2 className="text-sm font-semibold text-slate-300">
                   DUS Distribution
                 </h2>
               </div>
-              <p className="text-xs text-gray-400 mb-4">
+              <p className="text-xs text-slate-600 mb-4">
                 Number of student × topic pairs at each score range
               </p>
               <DUSHistogram data={data.dus_distribution} />
@@ -232,28 +243,28 @@ export default function FacultyDashboardPage() {
               {/* Legend */}
               <div className="flex flex-wrap gap-4 mt-4 justify-center">
                 {[
-                  { color: "#ef4444", label: "Fragile (< 60)" },
+                  { color: "#f43f5e", label: "Fragile (< 60)" },
                   { color: "#f59e0b", label: "Partial (60–79)" },
-                  { color: "#22c55e", label: "Durable (≥ 80)" },
+                  { color: "#10b981", label: "Durable (≥ 80)" },
                 ].map(({ color, label }) => (
                   <div key={label} className="flex items-center gap-1.5">
                     <div
                       className="w-3 h-3 rounded-sm"
                       style={{ backgroundColor: color, opacity: 0.85 }}
                     />
-                    <span className="text-xs text-gray-500">{label}</span>
+                    <span className="text-xs text-slate-500">{label}</span>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Topic summary table */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-card overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-gray-700">
+            <div className="bg-white/[0.04] rounded-xl border border-white/[0.08] shadow-card overflow-hidden">
+              <div className="px-5 py-4 border-b border-white/[0.06] flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-slate-300">
                   Topic Breakdown
                 </h2>
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-slate-600">
                   Across {data.num_students} student{data.num_students !== 1 ? "s" : ""}
                 </span>
               </div>
@@ -261,12 +272,12 @@ export default function FacultyDashboardPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-100 bg-gray-50/60">
+                    <tr className="border-b border-white/[0.06] bg-white/[0.03]">
                       {["Topic", "Students", "Avg Mastery", "Avg Retention", "Avg Transfer", "Avg Calibration", "Avg DUS", "Flags"].map(
                         (h) => (
                           <th
                             key={h}
-                            className="text-left px-4 py-3 font-semibold text-gray-400 text-xs uppercase tracking-wide"
+                            className="text-left px-4 py-3 font-semibold text-slate-500 text-xs uppercase tracking-wide"
                           >
                             {h}
                           </th>
@@ -279,14 +290,14 @@ export default function FacultyDashboardPage() {
                       <tr
                         key={t.topic_id}
                         className={cn(
-                          "border-b border-gray-50 hover:bg-gray-50/50 transition-colors",
+                          "border-b border-white/[0.04] hover:bg-white/[0.03] transition-colors",
                           i === data.topic_summaries.length - 1 && "border-b-0",
                         )}
                       >
-                        <td className="px-4 py-3.5 font-medium text-gray-800">
+                        <td className="px-4 py-3.5 font-medium text-slate-200">
                           {t.topic_name}
                         </td>
-                        <td className="px-4 py-3.5 text-gray-500">
+                        <td className="px-4 py-3.5 text-slate-500">
                           {t.num_students}
                         </td>
                         <td className="px-4 py-3.5">
@@ -314,24 +325,24 @@ export default function FacultyDashboardPage() {
                         <td className="px-4 py-3.5">
                           <div className="flex flex-wrap gap-1">
                             {t.low_retention_flag && (
-                              <span className="text-xs bg-red-50 text-red-600 border border-red-100 px-1.5 py-0.5 rounded-full">
+                              <span className="text-xs bg-red-500/10 text-red-400 border border-red-500/20 px-1.5 py-0.5 rounded-full">
                                 retention
                               </span>
                             )}
                             {t.transfer_failure_flag && (
-                              <span className="text-xs bg-purple-50 text-purple-600 border border-purple-100 px-1.5 py-0.5 rounded-full">
+                              <span className="text-xs bg-violet-500/10 text-violet-400 border border-violet-500/20 px-1.5 py-0.5 rounded-full">
                                 transfer
                               </span>
                             )}
                             {t.overconfidence_flag && (
-                              <span className="text-xs bg-amber-50 text-amber-600 border border-amber-100 px-1.5 py-0.5 rounded-full">
+                              <span className="text-xs bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded-full">
                                 overconf
                               </span>
                             )}
                             {!t.low_retention_flag &&
                               !t.transfer_failure_flag &&
                               !t.overconfidence_flag && (
-                                <span className="text-xs text-gray-300">—</span>
+                                <span className="text-xs text-slate-700">—</span>
                               )}
                           </div>
                         </td>
@@ -343,8 +354,8 @@ export default function FacultyDashboardPage() {
             </div>
 
             {/* Quick links to student views */}
-            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-5">
-              <p className="text-sm font-semibold text-indigo-800 mb-3">
+            <div className="bg-indigo-500/[0.06] border border-indigo-500/20 rounded-xl p-5">
+              <p className="text-sm font-semibold text-indigo-300 mb-3">
                 View individual student dashboards
               </p>
               <div className="flex flex-wrap gap-2">
@@ -355,7 +366,7 @@ export default function FacultyDashboardPage() {
                   <Link
                     key={id}
                     href={`/student/${id}`}
-                    className="flex items-center gap-2 bg-white border border-indigo-200 text-indigo-700 text-sm font-medium px-3 py-2 rounded-lg hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all"
+                    className="flex items-center gap-2 bg-white/[0.04] border border-indigo-500/25 text-indigo-300 text-sm font-medium px-3 py-2 rounded-lg hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all"
                   >
                     {name}
                     <span className="text-xs opacity-60">({tag})</span>

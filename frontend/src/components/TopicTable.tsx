@@ -19,13 +19,13 @@ interface TopicTableProps {
 function MiniBar({ value }: { value: number }) {
   return (
     <div className="flex items-center gap-2">
-      <div className="h-1.5 w-20 bg-gray-100 rounded-full overflow-hidden">
+      <div className="h-1.5 w-20 bg-white/[0.08] rounded-full overflow-hidden">
         <div
           className={cn("h-full rounded-full", getMetricBarColor(value))}
           style={{ width: `${Math.max(2, value)}%` }}
         />
       </div>
-      <span className="text-xs tabular-nums text-gray-500 w-6">
+      <span className="text-xs tabular-nums text-slate-500 w-6">
         {Math.round(value)}
       </span>
     </div>
@@ -35,34 +35,34 @@ function MiniBar({ value }: { value: number }) {
 export default function TopicTable({ topics, studentId }: TopicTableProps) {
   if (topics.length === 0) {
     return (
-      <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400 text-sm">
+      <div className="bg-white/[0.04] rounded-xl border border-white/[0.08] p-8 text-center text-slate-500 text-sm">
         No topic data yet.
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-card overflow-hidden animate-fade-in">
+    <div className="bg-white/[0.04] rounded-xl border border-white/[0.08] shadow-card overflow-hidden animate-fade-in">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/60">
-              <th className="text-left px-5 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wide">
+            <tr className="border-b border-white/[0.06] bg-white/[0.03]">
+              <th className="text-left px-5 py-3 font-semibold text-slate-500 text-xs uppercase tracking-wide">
                 Topic
               </th>
-              <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wide">
+              <th className="text-left px-4 py-3 font-semibold text-slate-500 text-xs uppercase tracking-wide">
                 DUS
               </th>
-              <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wide hidden md:table-cell">
+              <th className="text-left px-4 py-3 font-semibold text-slate-500 text-xs uppercase tracking-wide hidden md:table-cell">
                 Mastery
               </th>
-              <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wide hidden md:table-cell">
+              <th className="text-left px-4 py-3 font-semibold text-slate-500 text-xs uppercase tracking-wide hidden md:table-cell">
                 Retention
               </th>
-              <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wide hidden lg:table-cell">
+              <th className="text-left px-4 py-3 font-semibold text-slate-500 text-xs uppercase tracking-wide hidden lg:table-cell">
                 Transfer
               </th>
-              <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wide">
+              <th className="text-left px-4 py-3 font-semibold text-slate-500 text-xs uppercase tracking-wide">
                 Top Risk
               </th>
             </tr>
@@ -74,11 +74,11 @@ export default function TopicTable({ topics, studentId }: TopicTableProps) {
                 <tr
                   key={t.topic_id}
                   className={cn(
-                    "border-b border-gray-50 hover:bg-gray-50/50 transition-colors",
+                    "border-b border-white/[0.04] hover:bg-white/[0.03] transition-colors",
                     i === topics.length - 1 && "border-b-0",
                   )}
                 >
-                  <td className="px-5 py-3.5 font-medium text-gray-800">
+                  <td className="px-5 py-3.5 font-medium text-slate-200">
                     {t.topic_name}
                   </td>
                   <td className="px-4 py-3.5">
@@ -111,7 +111,7 @@ export default function TopicTable({ topics, studentId }: TopicTableProps) {
                     <MiniBar value={t.transfer_robustness} />
                   </td>
                   <td className="px-4 py-3.5">
-                    <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-medium">
+                    <span className="inline-flex items-center gap-1 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full font-medium">
                       ⚠ {risk}
                     </span>
                   </td>

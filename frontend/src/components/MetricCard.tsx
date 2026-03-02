@@ -25,12 +25,12 @@ export default function MetricCard({
   const barColor = getMetricBarColor(score);
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-card p-5 flex flex-col gap-3 animate-fade-in">
+    <div className="bg-white/[0.04] rounded-xl border border-white/[0.08] shadow-card p-5 flex flex-col gap-3 animate-fade-in hover:border-white/[0.14] transition-colors">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-gray-400">{icon}</span>
-          <span className="text-sm font-semibold text-gray-600">{label}</span>
+          <span className="text-slate-500">{icon}</span>
+          <span className="text-sm font-semibold text-slate-400">{label}</span>
         </div>
         <span className={cn("text-2xl font-bold tabular-nums", colorClass)}>
           {rounded}
@@ -38,7 +38,7 @@ export default function MetricCard({
       </div>
 
       {/* Progress bar */}
-      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+      <div className="h-1.5 bg-white/[0.08] rounded-full overflow-hidden">
         <div
           className={cn("h-full rounded-full transition-all duration-700", barColor)}
           style={{ width: `${Math.max(2, rounded)}%` }}
@@ -46,13 +46,13 @@ export default function MetricCard({
       </div>
 
       {sublabel && (
-        <p className="text-xs text-gray-400">{sublabel}</p>
+        <p className="text-xs text-slate-600">{sublabel}</p>
       )}
 
       {/* Collapsible explanation */}
       <button
         onClick={() => setExpanded((e) => !e)}
-        className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors w-fit"
+        className="flex items-center gap-1 text-xs text-slate-600 hover:text-slate-400 transition-colors w-fit"
       >
         {expanded ? (
           <>
@@ -68,7 +68,7 @@ export default function MetricCard({
       </button>
 
       {expanded && (
-        <p className="text-xs text-gray-500 leading-relaxed border-t border-gray-100 pt-2 animate-fade-in">
+        <p className="text-xs text-slate-400 leading-relaxed border-t border-white/[0.06] pt-2 animate-fade-in">
           {explanation}
         </p>
       )}

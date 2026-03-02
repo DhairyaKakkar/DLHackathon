@@ -6,71 +6,172 @@
   <title>EALE</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #09090f;
+      --surface: rgba(255,255,255,0.04);
+      --border: rgba(255,255,255,0.08);
+      --text: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #475569;
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+    }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #fff; color: #1e293b;
-      width: 280px; padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      width: 300px;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
     }
 
     .header {
-      background: #4f46e5; color: #fff;
-      padding: 14px 16px; display: flex; align-items: center; gap: 8px;
+      background: rgba(99,102,241,0.08);
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
+
     .logo-box {
-      width: 28px; height: 28px; background: rgba(255,255,255,.2);
-      border-radius: 6px; display: flex; align-items: center; justify-content: center;
-      font-size: 13px; font-weight: 800;
+      width: 30px;
+      height: 30px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 800;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(99,102,241,0.3);
     }
-    .header-text .title { font-size: 14px; font-weight: 700; }
-    .header-text .sub { font-size: 10px; opacity: .7; }
+
+    .header-text .title { font-size: 14px; font-weight: 700; color: #f1f5f9; }
+    .header-text .sub { font-size: 10px; color: #475569; }
 
     .body { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
 
     .student-row {
-      background: #f1f5f9; border-radius: 8px; padding: 10px 12px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 10px 12px;
     }
-    .student-label { font-size: 10px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
-    .student-name  { font-size: 13px; font-weight: 600; color: #1e293b; }
-    .student-key   { font-size: 10px; color: #94a3b8; font-family: monospace; }
+
+    .student-label {
+      font-size: 10px;
+      color: #475569;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-bottom: 2px;
+    }
+
+    .student-name  { font-size: 13px; font-weight: 600; color: #f1f5f9; }
+    .student-key   { font-size: 10px; color: #334155; font-family: monospace; }
 
     .quick-select { display: flex; flex-direction: column; gap: 4px; }
-    .qs-label { font-size: 10px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
-    .qs-btns  { display: flex; gap: 6px; }
-    .qs-btn {
-      flex: 1; background: #f8fafc; border: 1.5px solid #e2e8f0;
-      border-radius: 7px; padding: 6px 4px; font-size: 11px; font-weight: 600;
-      color: #475569; cursor: pointer; transition: all .12s; text-align: center;
+    .qs-label {
+      font-size: 10px;
+      color: #475569;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
     }
-    .qs-btn:hover { border-color: #4f46e5; background: #eef2ff; color: #4f46e5; }
-    .qs-btn.active { border-color: #4f46e5; background: #4f46e5; color: #fff; }
+    .qs-btns  { display: flex; gap: 6px; }
+
+    .qs-btn {
+      flex: 1;
+      background: rgba(255,255,255,0.04);
+      border: 1.5px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 7px 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #94a3b8;
+      cursor: pointer;
+      transition: all .15s;
+      text-align: center;
+    }
+
+    .qs-btn:hover {
+      border-color: rgba(99,102,241,0.5);
+      background: rgba(99,102,241,0.08);
+      color: #a5b4fc;
+    }
+
+    .qs-btn.active {
+      border-color: #6366f1;
+      background: rgba(99,102,241,0.18);
+      color: #a5b4fc;
+    }
 
     .quiz-btn {
-      background: #4f46e5; color: #fff; border: none; border-radius: 9px;
-      padding: 11px; font-size: 13px; font-weight: 700; cursor: pointer;
-      transition: background .12s; width: 100%;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 11px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s;
+      width: 100%;
+      box-shadow: 0 4px 16px rgba(99,102,241,0.3);
     }
-    .quiz-btn:hover { background: #4338ca; }
-    .quiz-btn:disabled { opacity: .55; cursor: not-allowed; }
 
-    .status-msg { font-size: 11px; color: #64748b; text-align: center; min-height: 14px; }
-    .status-msg.ok  { color: #16a34a; }
-    .status-msg.err { color: #dc2626; }
+    .quiz-btn:hover { opacity: 0.88; }
+    .quiz-btn:active { transform: scale(0.98); }
+    .quiz-btn:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+
+    .status-msg { font-size: 11px; color: #475569; text-align: center; min-height: 14px; }
+    .status-msg.ok  { color: #10b981; }
+    .status-msg.err { color: #f43f5e; }
 
     .links { display: flex; gap: 6px; }
+
     .link-btn {
-      flex: 1; background: #f8fafc; border: 1.5px solid #e2e8f0;
-      border-radius: 7px; padding: 7px 4px; font-size: 11px; font-weight: 600;
-      color: #475569; cursor: pointer; transition: all .12s; text-align: center;
-      text-decoration: none; display: block;
+      flex: 1;
+      background: rgba(255,255,255,0.04);
+      border: 1.5px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 7px 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #94a3b8;
+      cursor: pointer;
+      transition: all .15s;
+      text-align: center;
+      text-decoration: none;
+      display: block;
     }
-    .link-btn:hover { border-color: #818cf8; color: #4f46e5; background: #eef2ff; }
+
+    .link-btn:hover {
+      border-color: rgba(99,102,241,0.4);
+      color: #a5b4fc;
+      background: rgba(99,102,241,0.06);
+    }
 
     .footer {
-      border-top: 1px solid #f1f5f9; padding: 10px 16px;
-      display: flex; justify-content: space-between; align-items: center;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      padding: 10px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
-    .footer a { font-size: 11px; color: #94a3b8; text-decoration: none; }
-    .footer a:hover { color: #4f46e5; }
+
+    .footer a {
+      font-size: 11px;
+      color: #334155;
+      text-decoration: none;
+      transition: color .12s;
+    }
+
+    .footer a:hover { color: #a5b4fc; }
   </style>
 </head>
 <body>
@@ -109,15 +210,15 @@
 
     <!-- Quick links to dashboards -->
     <div class="links">
-      <a class="link-btn" href="http://localhost:3000/student/1" target="_blank">Alice's Dashboard</a>
-      <a class="link-btn" href="http://localhost:3000/student/2" target="_blank">Bob's Dashboard</a>
-      <a class="link-btn" href="http://localhost:3000/faculty" target="_blank">Faculty</a>
+      <a class="link-btn" href="http://localhost:3001/student/1" target="_blank">Alice</a>
+      <a class="link-btn" href="http://localhost:3001/student/2" target="_blank">Bob</a>
+      <a class="link-btn" href="http://localhost:3001/faculty" target="_blank">Faculty</a>
     </div>
   </div>
 
   <div class="footer">
     <a href="#" id="optionsLink">⚙ Options</a>
-    <a href="http://localhost:3000" target="_blank">Open EALE →</a>
+    <a href="http://localhost:3001" target="_blank">Open EALE →</a>
   </div>
 
   <script src="popup.js"></script>

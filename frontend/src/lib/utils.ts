@@ -22,42 +22,42 @@ export function getDusLabel(score: number): string {
 
 export function getDusColor(score: number): string {
   const level = getDusLevel(score);
-  if (level === "durable") return "#22c55e";
+  if (level === "durable") return "#10b981";
   if (level === "partial") return "#f59e0b";
-  return "#ef4444";
+  return "#f43f5e";
 }
 
 export function getDusBg(score: number): string {
   const level = getDusLevel(score);
-  if (level === "durable") return "bg-green-50 border-green-200";
-  if (level === "partial") return "bg-amber-50 border-amber-200";
-  return "bg-red-50 border-red-200";
+  if (level === "durable") return "bg-emerald-500/10 border-emerald-500/30";
+  if (level === "partial") return "bg-amber-500/10 border-amber-500/30";
+  return "bg-red-500/10 border-red-500/30";
 }
 
 export function getDusTextClass(score: number): string {
   const level = getDusLevel(score);
-  if (level === "durable") return "text-green-600";
-  if (level === "partial") return "text-amber-600";
-  return "text-red-600";
+  if (level === "durable") return "text-emerald-400";
+  if (level === "partial") return "text-amber-400";
+  return "text-red-400";
 }
 
 export function getDusBadgeClass(score: number): string {
   const level = getDusLevel(score);
   if (level === "durable")
-    return "bg-green-100 text-green-700 border border-green-200";
+    return "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30";
   if (level === "partial")
-    return "bg-amber-100 text-amber-700 border border-amber-200";
-  return "bg-red-100 text-red-700 border border-red-200";
+    return "bg-amber-500/15 text-amber-400 border border-amber-500/30";
+  return "bg-red-500/15 text-red-400 border border-red-500/30";
 }
 
 export function getMetricColor(score: number): string {
-  if (score >= 80) return "text-green-600";
-  if (score >= 60) return "text-amber-600";
-  return "text-red-600";
+  if (score >= 80) return "text-emerald-400";
+  if (score >= 60) return "text-amber-400";
+  return "text-red-400";
 }
 
 export function getMetricBarColor(score: number): string {
-  if (score >= 80) return "bg-green-500";
+  if (score >= 80) return "bg-emerald-500";
   if (score >= 60) return "bg-amber-500";
   return "bg-red-500";
 }

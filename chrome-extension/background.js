@@ -15,6 +15,7 @@ const DEFAULT_SETTINGS = {
   allowlist: [
     "file://",
     "localhost",
+    "youtube.com",
     "blackboard.com",
     "canvas.instructure.com",
     "moodle.org",
@@ -78,6 +79,20 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         .then(() => sendResponse({ ok: true }))
         .catch((err) => sendResponse({ ok: false, error: String(err) }));
     });
+    return true; // keep channel open for async sendResponse
+  }
+
+  // ── API proxy: content scripts on HTTPS pages (e.g. YouTube) cannot fetch
+  // http://localhost directly due to CSP. Route all API calls through here.
+  if (msg.type === "EALE_API_FETCH") {
+    fetch(msg.url, msg.options)
+      .then(async (res) => {
+        const body = await res.text();
+        sendResponse({ ok: res.ok, status: res.status, body });
+      })
+      .catch((err) => {
+        sendResponse({ ok: false, error: err.message });
+      });
     return true; // keep channel open for async sendResponse
   }
 });

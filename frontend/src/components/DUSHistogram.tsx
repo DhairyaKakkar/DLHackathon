@@ -24,7 +24,7 @@ function bucketMidpoint(label: string): number {
 export default function DUSHistogram({ data }: DUSHistogramProps) {
   if (!data || data.length === 0) {
     return (
-      <div className="h-40 flex items-center justify-center text-sm text-gray-400">
+      <div className="h-40 flex items-center justify-center text-sm text-slate-500">
         No data
       </div>
     );
@@ -39,23 +39,25 @@ export default function DUSHistogram({ data }: DUSHistogramProps) {
       >
         <XAxis
           dataKey="label"
-          tick={{ fontSize: 11, fill: "#9ca3af" }}
+          tick={{ fontSize: 11, fill: "#475569" }}
           axisLine={false}
           tickLine={false}
         />
         <YAxis
-          tick={{ fontSize: 11, fill: "#9ca3af" }}
+          tick={{ fontSize: 11, fill: "#475569" }}
           axisLine={false}
           tickLine={false}
           allowDecimals={false}
         />
         <Tooltip
-          cursor={{ fill: "rgba(0,0,0,0.04)" }}
+          cursor={{ fill: "rgba(255,255,255,0.04)" }}
           contentStyle={{
             fontSize: 12,
             borderRadius: 8,
-            border: "1px solid #e5e7eb",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+            border: "1px solid rgba(255,255,255,0.1)",
+            background: "#1e1e2e",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
+            color: "#f1f5f9",
           }}
           formatter={(value: number, name: string) => {
             if (name === "count") return [`${value} students`, "Count"];

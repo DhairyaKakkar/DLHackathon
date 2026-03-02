@@ -25,7 +25,9 @@ export default function RootLayout({
             style: {
               fontSize: "13px",
               borderRadius: "10px",
-              border: "1px solid #e5e7eb",
+              background: "#1e1e2e",
+              border: "1px solid rgba(255,255,255,0.1)",
+              color: "#f1f5f9",
             },
           }}
         />

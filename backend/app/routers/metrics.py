@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Student, Topic, Question, Attempt
+from app.models import Student, Topic, Question, Attempt, UserRole
 from app.schemas import StudentDashboard, TopicMetrics, FacultyDashboard, FacultyTopicSummary, HistogramBucket
 from app.services.metrics_service import load_student_topic_metrics, compute_topic_metrics
 
@@ -75,7 +75,7 @@ def topic_metrics_for_student(
 @router.get("/faculty", response_model=FacultyDashboard)
 def faculty_dashboard(db: Session = Depends(get_db)):
     """Cohort-level aggregates for faculty view."""
-    students = db.query(Student).filter(Student.role == "student").all()
+    students = db.query(Student).filter(Student.role == UserRole.STUDENT).all()
     topics = db.query(Topic).all()
 
     num_students = len(students)

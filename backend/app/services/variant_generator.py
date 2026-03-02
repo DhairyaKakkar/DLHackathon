@@ -131,7 +131,7 @@ def _generate_llm_variants(
         )
 
         resp = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=settings.OPENAI_MODEL,
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
             max_tokens=800,

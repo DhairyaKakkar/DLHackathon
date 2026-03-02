@@ -161,5 +161,70 @@ All LLM paths fail gracefully to deterministic fallbacks. LLM responses are cach
 ## URLs
 - Backend API: http://localhost:8000
 - API Docs: http://localhost:8000/docs
-- Frontend: http://localhost:3000
+- Frontend: http://localhost:3001
 - Fake LMS testbench: open `testbench/fake-lms.html` in Chrome
+
+---
+
+## Installed Claude Code Plugins
+
+### superpowers v4.3.1 — `obra/superpowers-marketplace`
+
+Framework of proven development skills. The SessionStart hook auto-injects context at the start of every conversation.
+
+**When to invoke each skill:**
+
+| Skill | When to use |
+|---|---|
+| `brainstorming` | **Before any creative work** — features, components, new functionality. Uses Socratic dialogue. Has a hard gate: no code until design is approved. |
+| `writing-plans` | When you have requirements for a multi-step task, before touching code. Produces 2–5 min bite-sized tasks. |
+| `executing-plans` | When executing a written plan in the current session with review checkpoints. |
+| `test-driven-development` | Before writing any implementation code. Enforces RED (failing test) → GREEN (pass) → REFACTOR cycle. |
+| `systematic-debugging` | Before proposing any fix for a bug, test failure, or unexpected behavior. Four-phase root cause analysis. |
+| `verification-before-completion` | Before claiming work is done, fixed, or passing. Runs verification commands, evidence before assertions. |
+| `requesting-code-review` | After completing a task or feature, before merging. Pre-review quality checklist. |
+| `receiving-code-review` | When processing code review feedback. Requires technical rigor, not blind agreement. |
+| `subagent-driven-development` | When executing independent tasks in the current session using subagents with two-stage review. |
+| `dispatching-parallel-agents` | When facing 2+ independent tasks with no shared state. Runs them concurrently. |
+| `using-git-worktrees` | Before feature work needing isolation, or before executing implementation plans. |
+| `finishing-a-development-branch` | When implementation is complete and tests pass. Guides merge/PR/cleanup decisions. |
+| `writing-skills` | When creating or editing custom skills. |
+| `using-superpowers` | At session start — establishes skill discovery and usage framework. |
+
+**Commands:**
+- `/brainstorm` — Refines requirements via Socratic dialogue before any implementation
+- `/write-plan` — Decomposes work into precise, bite-sized tasks
+- `/execute-plan` — Deploys subagents or batch processing with staged reviews
+
+**Install:**
+```bash
+/plugin marketplace add obra/superpowers-marketplace
+/plugin install superpowers@superpowers-marketplace
+```
+
+---
+
+### frontend-design — `claude-plugins-official`
+
+Creates distinctive, production-grade frontend interfaces. Auto-activates when building web components, pages, or UIs. Explicitly fights generic "AI slop" aesthetics.
+
+**What it does:**
+- Commits to a **bold aesthetic direction** before writing any code (brutalist, maximalist, retro-futuristic, luxury, editorial, organic, etc.)
+- Enforces distinctive typography (never Inter/Arial/Roboto — use characterful display fonts)
+- Requires cohesive color palettes with dominant colors + sharp accents
+- Mandates high-impact animations and micro-interactions (CSS-first, Motion library for React)
+- Uses unexpected spatial composition: asymmetry, overlap, diagonal flow, grid-breaking elements
+- Adds depth via gradient meshes, noise textures, geometric patterns, layered transparencies
+
+**Critical rules it enforces:**
+- Never use purple gradients on white backgrounds
+- Never use Space Grotesk, Inter, or system fonts as primary choices
+- Every design must be memorable and context-specific — no two should look alike
+- Match implementation complexity to aesthetic vision: maximalist = elaborate animations, minimalist = precise restraint
+
+**Relevant for this project:** Chrome extension overlay redesign, frontend dashboard pages, any new UI components.
+
+**Install:**
+```bash
+/plugin install frontend-design@claude-plugins-official
+```

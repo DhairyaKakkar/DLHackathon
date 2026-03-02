@@ -27,8 +27,8 @@ import Navbar from "@/components/Navbar";
 function Tooltip({ text }: { text: string }) {
   return (
     <span className="group relative inline-flex">
-      <Info className="w-3.5 h-3.5 text-gray-300 hover:text-gray-500 cursor-help" />
-      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-52 bg-gray-900 text-white text-xs rounded-lg px-2.5 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity leading-snug z-30">
+      <Info className="w-3.5 h-3.5 text-slate-600 hover:text-slate-400 cursor-help transition-colors" />
+      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-52 bg-[#1e1e2e] border border-white/[0.1] text-slate-200 text-xs rounded-lg px-2.5 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity leading-snug z-30 shadow-xl">
         {text}
       </span>
     </span>
@@ -52,7 +52,7 @@ export default function StudentDashboardPage() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#09090f]">
       <Navbar
         backHref="/"
         backLabel="Home"
@@ -60,7 +60,7 @@ export default function StudentDashboardPage() {
         action={
           <Link
             href={`/student/${studentId}/tasks`}
-            className="flex items-center gap-1.5 bg-indigo-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+            className="flex items-center gap-1.5 bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:opacity-90 transition-opacity shadow-glow-sm"
           >
             <ClipboardList className="w-4 h-4" />
             Tasks
@@ -82,23 +82,23 @@ export default function StudentDashboardPage() {
           <div className="flex flex-col gap-6 animate-fade-in">
             {/* Page header */}
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
+              <h1 className="font-display text-2xl font-bold text-white">
                 {data.student_name}
               </h1>
-              <p className="text-sm text-gray-400 mt-0.5">
+              <p className="text-sm text-slate-500 mt-0.5">
                 Student ID #{data.student_id}
               </p>
             </div>
 
             {/* DUS Hero card */}
             <div
-              className={`bg-white rounded-2xl border p-6 sm:p-8 flex flex-col sm:flex-row items-center gap-6 shadow-card ${getDusBg(data.overall_dus)}`}
+              className={`rounded-2xl border p-6 sm:p-8 flex flex-col sm:flex-row items-center gap-6 shadow-card ${getDusBg(data.overall_dus)}`}
             >
               <DUSGauge score={data.overall_dus} size="lg" />
 
               <div className="flex flex-col gap-3 flex-1">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-bold text-gray-900">
+                  <h2 className="text-lg font-bold text-white">
                     Durable Understanding Score
                   </h2>
                   <Tooltip text="DUS = 0.30×mastery + 0.30×retention + 0.25×transfer + 0.15×calibration — combines four evidence dimensions into one number." />
@@ -109,29 +109,29 @@ export default function StudentDashboardPage() {
                     className={`text-3xl font-black tabular-nums ${getDusTextClass(data.overall_dus)}`}
                   >
                     {Math.round(data.overall_dus)}
-                    <span className="text-lg font-normal text-gray-400">
+                    <span className="text-lg font-normal text-slate-600">
                       /100
                     </span>
                   </span>
                   <span
                     className={`text-sm font-semibold px-2.5 py-1 rounded-full ${
                       data.overall_dus >= 80
-                        ? "bg-green-100 text-green-700"
+                        ? "bg-emerald-500/15 text-emerald-400"
                         : data.overall_dus >= 60
-                          ? "bg-amber-100 text-amber-700"
-                          : "bg-red-100 text-red-700"
+                          ? "bg-amber-500/15 text-amber-400"
+                          : "bg-red-500/15 text-red-400"
                     }`}
                   >
                     {getDusLabel(data.overall_dus)} Mastery
                   </span>
                 </div>
 
-                <p className="text-sm text-gray-600 leading-relaxed max-w-lg">
+                <p className="text-sm text-slate-400 leading-relaxed max-w-lg">
                   {data.overall_explanation}
                 </p>
 
                 {/* DUS formula */}
-                <div className="inline-block bg-gray-900/90 text-gray-200 text-xs font-mono px-3 py-1.5 rounded-lg w-fit mt-1">
+                <div className="inline-block bg-white/[0.05] border border-white/[0.08] text-slate-400 text-xs font-mono px-3 py-1.5 rounded-lg w-fit mt-1">
                   DUS = 0.30·M + 0.30·R + 0.25·T + 0.15·C
                 </div>
               </div>
@@ -193,10 +193,10 @@ export default function StudentDashboardPage() {
             {/* Per-topic table */}
             <section>
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-base font-semibold text-gray-700">
+                <h2 className="text-base font-semibold text-slate-300">
                   Per-Topic Breakdown
                 </h2>
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-slate-600">
                   {data.topics.length} topic
                   {data.topics.length !== 1 ? "s" : ""}
                 </span>
@@ -208,10 +208,10 @@ export default function StudentDashboardPage() {
             {data.topics.map((topic) => (
               <section key={topic.topic_id} className="animate-fade-in">
                 <div className="flex items-center gap-3 mb-3">
-                  <h3 className="text-sm font-semibold text-gray-700">
+                  <h3 className="text-sm font-semibold text-slate-300">
                     {topic.topic_name}
                   </h3>
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-slate-600">
                     {topic.total_attempts} attempts · DUS{" "}
                     <span
                       className={getDusTextClass(
@@ -262,7 +262,7 @@ export default function StudentDashboardPage() {
             <div className="flex justify-center pt-2 pb-4">
               <Link
                 href={`/student/${studentId}/tasks`}
-                className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-indigo-700 transition-all hover:scale-[1.02] active:scale-95 shadow-sm"
+                className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-6 py-3 rounded-xl font-semibold hover:opacity-90 transition-all hover:scale-[1.02] active:scale-95 shadow-glow"
               >
                 <ClipboardList className="w-5 h-5" />
                 Go to Tasks

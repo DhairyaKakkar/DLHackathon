@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 
 function Pulse({ className }: { className?: string }) {
   return (
-    <div className={cn("animate-pulse bg-gray-100 rounded-lg", className)} />
+    <div className={cn("animate-pulse bg-white/[0.06] rounded-lg", className)} />
   );
 }
 
@@ -16,7 +16,7 @@ export function StudentDashboardSkeleton() {
       </div>
 
       {/* DUS gauge area */}
-      <div className="bg-white rounded-xl border border-gray-200 p-8 flex flex-col items-center gap-4">
+      <div className="bg-white/[0.04] rounded-xl border border-white/[0.08] p-8 flex flex-col items-center gap-4">
         <Pulse className="h-32 w-52 rounded-full" />
         <Pulse className="h-4 w-72" />
       </div>
@@ -26,7 +26,7 @@ export function StudentDashboardSkeleton() {
         {Array.from({ length: 4 }).map((_, i) => (
           <div
             key={i}
-            className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-3"
+            className="bg-white/[0.04] rounded-xl border border-white/[0.08] p-5 flex flex-col gap-3"
           >
             <Pulse className="h-4 w-24" />
             <Pulse className="h-8 w-12" />
@@ -36,11 +36,11 @@ export function StudentDashboardSkeleton() {
       </div>
 
       {/* Topic table */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white/[0.04] rounded-xl border border-white/[0.08] overflow-hidden">
         {Array.from({ length: 4 }).map((_, i) => (
           <div
             key={i}
-            className="flex items-center gap-4 px-5 py-4 border-b border-gray-50 last:border-0"
+            className="flex items-center gap-4 px-5 py-4 border-b border-white/[0.05] last:border-0"
           >
             <Pulse className="h-4 w-32" />
             <Pulse className="h-4 w-16" />
@@ -59,7 +59,7 @@ export function TasksSkeleton() {
       {Array.from({ length: 3 }).map((_, i) => (
         <div
           key={i}
-          className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4"
+          className="bg-white/[0.04] rounded-xl border border-white/[0.08] p-5 flex items-center gap-4"
         >
           <Pulse className="h-6 w-20 rounded-full" />
           <div className="flex-1 flex flex-col gap-2">
@@ -78,7 +78,7 @@ export function FacultySkeleton() {
       {/* Stats row */}
       <div className="grid grid-cols-3 gap-4">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="bg-white rounded-xl border border-gray-200 p-5">
+          <div key={i} className="bg-white/[0.04] rounded-xl border border-white/[0.08] p-5">
             <Pulse className="h-3 w-20 mb-3" />
             <Pulse className="h-8 w-16" />
           </div>
@@ -88,7 +88,7 @@ export function FacultySkeleton() {
       {/* Risk cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="bg-white rounded-xl border border-gray-200 p-5">
+          <div key={i} className="bg-white/[0.04] rounded-xl border border-white/[0.08] p-5">
             <Pulse className="h-4 w-32 mb-3" />
             <Pulse className="h-3 w-full mb-2" />
             <Pulse className="h-3 w-2/3" />
@@ -97,7 +97,7 @@ export function FacultySkeleton() {
       </div>
 
       {/* Chart */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <div className="bg-white/[0.04] rounded-xl border border-white/[0.08] p-6">
         <Pulse className="h-4 w-36 mb-4" />
         <Pulse className="h-44 w-full" />
       </div>

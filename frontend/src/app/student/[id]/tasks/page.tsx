@@ -35,7 +35,7 @@ export default function StudentTasksPage() {
   const dashboard = dashQuery.data;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#09090f]">
       <Navbar
         backHref={`/student/${studentId}`}
         backLabel="Dashboard"
@@ -44,7 +44,7 @@ export default function StudentTasksPage() {
           <button
             onClick={() => tasksQuery.refetch()}
             disabled={tasksQuery.isFetching}
-            className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            className="p-2 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/[0.06] transition-colors"
             title="Refresh tasks"
           >
             <RefreshCw
@@ -58,13 +58,13 @@ export default function StudentTasksPage() {
         <div className="flex flex-col gap-6">
           {/* Mini dashboard strip */}
           {dashboard && (
-            <div className="bg-white rounded-xl border border-gray-200 shadow-card p-4 flex items-center gap-5 animate-fade-in">
+            <div className="bg-white/[0.04] rounded-xl border border-white/[0.08] shadow-card p-4 flex items-center gap-5 animate-fade-in">
               <DUSGauge score={dashboard.overall_dus} size="sm" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-800">
+                <p className="text-sm font-semibold text-slate-200">
                   {dashboard.student_name}
                 </p>
-                <p className="text-xs text-gray-400 mt-0.5">
+                <p className="text-xs text-slate-500 mt-0.5">
                   Overall DUS:{" "}
                   <span
                     className={`font-bold ${getDusTextClass(dashboard.overall_dus)}`}
@@ -73,14 +73,14 @@ export default function StudentTasksPage() {
                   </span>
                 </p>
                 {dashboard.topics.length > 0 && (
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-xs text-slate-600 mt-0.5">
                     {dashboard.topics.length} topics tracked
                   </p>
                 )}
               </div>
               <Link
                 href={`/student/${studentId}`}
-                className="text-xs text-indigo-600 font-semibold hover:underline shrink-0"
+                className="text-xs text-indigo-400 font-semibold hover:text-indigo-300 transition-colors shrink-0"
               >
                 Full dashboard →
               </Link>
@@ -90,26 +90,26 @@ export default function StudentTasksPage() {
           {/* Tasks header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                <CalendarClock className="w-5 h-5 text-indigo-500" />
+              <h1 className="font-display text-xl font-bold text-white flex items-center gap-2">
+                <CalendarClock className="w-5 h-5 text-indigo-400" />
                 Due Tasks
                 {!tasksQuery.isLoading && (
-                  <span className="text-base font-normal text-gray-400">
+                  <span className="text-base font-normal text-slate-500">
                     ({tasks.length})
                   </span>
                 )}
               </h1>
-              <p className="text-xs text-gray-400 mt-0.5">
+              <p className="text-xs text-slate-500 mt-0.5">
                 Complete retests and transfer exercises to update your scores
               </p>
             </div>
 
             <label className="flex items-center gap-2 cursor-pointer">
-              <span className="text-xs text-gray-500">Show future</span>
+              <span className="text-xs text-slate-500">Show future</span>
               <button
                 onClick={() => setIncludeFuture((v) => !v)}
                 className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                  includeFuture ? "bg-indigo-600" : "bg-gray-200"
+                  includeFuture ? "bg-indigo-600" : "bg-white/[0.1]"
                 }`}
               >
                 <span
@@ -135,12 +135,12 @@ export default function StudentTasksPage() {
           {/* Empty state */}
           {!tasksQuery.isLoading && !tasksQuery.isError && tasks.length === 0 && (
             <div className="flex flex-col items-center gap-4 py-16 text-center">
-              <div className="w-14 h-14 rounded-full bg-green-50 flex items-center justify-center">
-                <CheckCircle className="w-7 h-7 text-green-400" />
+              <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                <CheckCircle className="w-7 h-7 text-emerald-400" />
               </div>
               <div>
-                <p className="font-semibold text-gray-700">All caught up!</p>
-                <p className="text-sm text-gray-400 mt-1">
+                <p className="font-semibold text-slate-200">All caught up!</p>
+                <p className="text-sm text-slate-500 mt-1">
                   {includeFuture
                     ? "No tasks scheduled at all."
                     : "No tasks are due right now. Toggle 'Show future' to see upcoming tasks."}
@@ -149,7 +149,7 @@ export default function StudentTasksPage() {
               {!includeFuture && (
                 <button
                   onClick={() => setIncludeFuture(true)}
-                  className="text-sm text-indigo-600 font-semibold hover:underline"
+                  className="text-sm text-indigo-400 font-semibold hover:text-indigo-300 transition-colors"
                 >
                   Show future tasks →
                 </button>

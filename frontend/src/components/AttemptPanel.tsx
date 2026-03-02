@@ -87,32 +87,32 @@ export default function AttemptPanel({
         className={cn(
           "flex flex-col gap-3 p-4 rounded-xl border animate-fade-in",
           submitted.isCorrect
-            ? "bg-green-50 border-green-200"
-            : "bg-red-50 border-red-200",
+            ? "bg-emerald-500/10 border-emerald-500/30"
+            : "bg-red-500/10 border-red-500/30",
         )}
       >
         <div className="flex items-center gap-2">
           {submitted.isCorrect ? (
-            <CheckCircle className="w-5 h-5 text-green-500" />
+            <CheckCircle className="w-5 h-5 text-emerald-400" />
           ) : (
-            <XCircle className="w-5 h-5 text-red-500" />
+            <XCircle className="w-5 h-5 text-red-400" />
           )}
           <span
             className={cn(
               "font-semibold",
-              submitted.isCorrect ? "text-green-700" : "text-red-700",
+              submitted.isCorrect ? "text-emerald-400" : "text-red-400",
             )}
           >
             {submitted.isCorrect ? "Correct!" : "Incorrect"}
           </span>
         </div>
         {!submitted.isCorrect && (
-          <p className="text-sm text-red-600">
+          <p className="text-sm text-red-300">
             Correct answer:{" "}
             <span className="font-semibold">{question.correct_answer}</span>
           </p>
         )}
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-slate-500">
           Your confidence was {confidence}/10. Task marked complete.
         </p>
       </div>
@@ -130,8 +130,8 @@ export default function AttemptPanel({
               className={cn(
                 "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all",
                 answer === opt
-                  ? "bg-brand-50 border-brand-500 ring-1 ring-brand-500"
-                  : "bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50",
+                  ? "bg-indigo-500/20 border-indigo-500 ring-1 ring-indigo-500/50"
+                  : "bg-white/[0.03] border-white/[0.08] hover:border-white/20 hover:bg-white/[0.05]",
               )}
             >
               <input
@@ -140,9 +140,9 @@ export default function AttemptPanel({
                 value={opt}
                 checked={answer === opt}
                 onChange={() => setAnswer(opt)}
-                className="accent-indigo-600"
+                className="accent-indigo-500"
               />
-              <span className="text-sm text-gray-700">{opt}</span>
+              <span className="text-sm text-slate-300">{opt}</span>
             </label>
           ))}
         </div>
@@ -156,17 +156,17 @@ export default function AttemptPanel({
           value={answer}
           onChange={(e) => setAnswer(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && canSubmit && mutation.mutate()}
-          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400"
+          className="w-full px-3 py-2 text-sm bg-white/[0.04] border border-white/[0.08] rounded-lg text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500/60 transition-colors"
         />
       )}
 
       {/* Confidence slider */}
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-gray-500">
+          <span className="text-xs font-medium text-slate-500">
             Confidence: {confidence}/10
           </span>
-          <span className="text-xs text-gray-400 italic">
+          <span className="text-xs text-slate-600 italic">
             {confidenceLabels[confidence]}
           </span>
         </div>
@@ -177,9 +177,9 @@ export default function AttemptPanel({
           step={1}
           value={confidence}
           onChange={(e) => setConfidence(Number(e.target.value))}
-          className="w-full accent-indigo-600 cursor-pointer"
+          className="w-full accent-indigo-500 cursor-pointer"
         />
-        <div className="flex justify-between text-xs text-gray-300">
+        <div className="flex justify-between text-xs text-slate-700">
           <span>Guessing</span>
           <span>Certain</span>
         </div>
@@ -187,16 +187,16 @@ export default function AttemptPanel({
 
       {/* Optional reasoning */}
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-gray-500">
+        <label className="text-xs font-medium text-slate-500">
           Reasoning{" "}
-          <span className="font-normal text-gray-400">(optional)</span>
+          <span className="font-normal text-slate-600">(optional)</span>
         </label>
         <textarea
           rows={2}
           placeholder="Explain your thinking…"
           value={reasoning}
           onChange={(e) => setReasoning(e.target.value)}
-          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 resize-none"
+          className="w-full px-3 py-2 text-sm bg-white/[0.04] border border-white/[0.08] rounded-lg text-slate-300 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500/60 resize-none transition-colors"
         />
       </div>
 
@@ -207,8 +207,8 @@ export default function AttemptPanel({
         className={cn(
           "flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all",
           canSubmit
-            ? "bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95"
-            : "bg-gray-100 text-gray-400 cursor-not-allowed",
+            ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-90 active:scale-95 shadow-glow-sm"
+            : "bg-white/[0.06] text-slate-600 cursor-not-allowed",
         )}
       >
         {mutation.isPending ? (

@@ -56,7 +56,7 @@ export default function DUSGauge({ score, size = "lg" }: DUSGaugeProps) {
         <path
           d={arcPath}
           fill="none"
-          stroke="#e5e7eb"
+          stroke="rgba(255,255,255,0.08)"
           strokeWidth={STROKE}
           strokeLinecap="round"
         />
@@ -70,7 +70,7 @@ export default function DUSGauge({ score, size = "lg" }: DUSGaugeProps) {
           strokeLinecap="round"
           strokeDasharray={`${arcLen} ${arcLen}`}
           strokeDashoffset={dashOffset}
-          style={{ transition: "stroke-dashoffset 0.8s ease-out" }}
+          style={{ transition: "stroke-dashoffset 0.8s ease-out", filter: `drop-shadow(0 0 6px ${color}60)` }}
         />
 
         {/* Score number */}
@@ -95,7 +95,7 @@ export default function DUSGauge({ score, size = "lg" }: DUSGaugeProps) {
           dominantBaseline="middle"
           fontWeight="600"
           fontSize={textSizes.label}
-          fill="#6b7280"
+          fill="#475569"
           letterSpacing="0.08em"
           fontFamily="Inter, system-ui, sans-serif"
         >
@@ -108,7 +108,7 @@ export default function DUSGauge({ score, size = "lg" }: DUSGaugeProps) {
           y={CENTER_Y + 18}
           textAnchor="middle"
           fontSize="0.6rem"
-          fill="#9ca3af"
+          fill="#334155"
           fontFamily="Inter, system-ui, sans-serif"
         >
           0
@@ -118,7 +118,7 @@ export default function DUSGauge({ score, size = "lg" }: DUSGaugeProps) {
           y={CENTER_Y + 18}
           textAnchor="middle"
           fontSize="0.6rem"
-          fill="#9ca3af"
+          fill="#334155"
           fontFamily="Inter, system-ui, sans-serif"
         >
           100
