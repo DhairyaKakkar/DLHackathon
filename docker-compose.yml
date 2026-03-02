@@ -31,8 +31,8 @@ services:
       USE_LLM_VARIANTS: "false"
       USE_LLM_CONTEXT: "true"
       USE_LLM_GRADING: "true"
-      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
-      OPENAI_MODEL: "gpt-4.1"
+      OPENAI_API_KEY: ""   # add your key locally — never commit
+      OPENAI_MODEL: "gpt-4o"
       LLM_CACHE_TTL_SECONDS: "${LLM_CACHE_TTL_SECONDS:-600}"
       CORS_ORIGINS: "*"
       SCHEDULER_INTERVAL_SECONDS: "60"
@@ -43,23 +43,30 @@ services:
       - ./backend:/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
+  compvis:
+    build:
+      context: ./CompVis
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+
   frontend:
     image: node:18-alpine
     working_dir: /app
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "3000:3000"
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
       NODE_ENV: development
-      PORT: 3001
     depends_on:
       - backend
     volumes:
       - ./frontend:/app
       - /app/node_modules
       - /app/.next
-    command: sh -c "npm install && npm run dev -- --port 3001"
+    command: sh -c "npm install && npm run dev"
 
 volumes:
   pgdata:

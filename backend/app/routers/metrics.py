@@ -85,6 +85,7 @@ def faculty_dashboard(db: Session = Depends(get_db)):
     low_retention_topics: list[str] = []
     transfer_failure_topics: list[str] = []
     overconfidence_hotspots: list[str] = []
+    ai_risk_student_set: set[str] = set()
 
     for topic in topics:
         q_all = db.query(Question).filter(Question.topic_id == topic.id).all()
@@ -96,6 +97,7 @@ def faculty_dashboard(db: Session = Depends(get_db)):
             continue
 
         masteries, retentions, transfers, calibrations, dus_vals, overconf_gaps = [], [], [], [], [], []
+        ai_dep_scores = []
         student_count = 0
 
         for student in students:
@@ -108,12 +110,15 @@ def faculty_dashboard(db: Session = Depends(get_db)):
             if not attempts:
                 continue
             m = compute_topic_metrics(topic.id, topic.name, orig_ids, var_ids, attempts)
+            if m.get("ai_dependency_flagged"):
+                ai_risk_student_set.add(student.name)
             masteries.append(m["mastery"])
             retentions.append(m["retention"])
             transfers.append(m["transfer_robustness"])
             calibrations.append(m["calibration"])
             dus_vals.append(m["durable_understanding_score"])
             overconf_gaps.append(m["overconfidence_gap"])
+            ai_dep_scores.append(m.get("ai_dependency_score", 0.0))
             all_dus_values.append(m["durable_understanding_score"])
             student_count += 1
 
@@ -126,10 +131,12 @@ def faculty_dashboard(db: Session = Depends(get_db)):
         avg_ret = _avg(retentions)
         avg_trans = _avg(transfers)
         avg_overconf = _avg(overconf_gaps)
+        avg_ai_dep = _avg(ai_dep_scores)
 
         low_ret = avg_ret < 60
         trans_fail = avg_trans < 60
         overconf = avg_overconf > 15
+        ai_dep_flag = avg_ai_dep >= 40
 
         if low_ret:
             low_retention_topics.append(topic.name)
@@ -152,6 +159,8 @@ def faculty_dashboard(db: Session = Depends(get_db)):
                 low_retention_flag=low_ret,
                 transfer_failure_flag=trans_fail,
                 overconfidence_flag=overconf,
+                ai_dependency_flag=ai_dep_flag,
+                avg_ai_dependency_score=avg_ai_dep,
             )
         )
 
@@ -184,6 +193,7 @@ def faculty_dashboard(db: Session = Depends(get_db)):
         low_retention_topics=low_retention_topics,
         transfer_failure_topics=transfer_failure_topics,
         overconfidence_hotspots=overconfidence_hotspots,
+        ai_risk_students=list(ai_risk_student_set),
         dus_distribution=dus_distribution,
         explanation=explanation,
     )

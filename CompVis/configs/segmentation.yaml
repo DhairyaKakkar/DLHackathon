@@ -1,0 +1,23 @@
+task: segmentation
+
+model:
+  name: unet
+  pretrained: false
+  num_classes: 2
+  in_channels: 3
+  base_features: 64
+
+data:
+  image_size: 256
+  batch_size: 8
+  num_workers: 4
+  augmentation: heavy
+
+training:
+  epochs: 30
+  lr: 0.001
+  optimizer: adam
+  scheduler: cosine
+
+inference:
+  device: auto

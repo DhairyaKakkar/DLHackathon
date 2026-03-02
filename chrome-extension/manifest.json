@@ -8,11 +8,14 @@
   "permissions": ["storage", "alarms", "activeTab"],
   "host_permissions": [
     "http://localhost:8000/*",
+    "http://localhost:8001/*",
     "http://localhost:3000/*",
     "*://*.blackboard.com/*",
     "*://*.canvas.instructure.com/*",
     "*://*.moodle.org/*",
     "*://*.notion.site/*",
+    "*://*.khanacademy.org/*",
+    "*://*.youtube.com/*",
     "file:///*"
   ],
 

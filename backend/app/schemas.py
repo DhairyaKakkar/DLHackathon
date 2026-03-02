@@ -153,6 +153,8 @@ class TopicMetrics(BaseModel):
     overconfidence_gap: float
     calibration_explanation: str
     calibration_bins: list[dict[str, Any]]
+    ai_dependency_score: float = 0.0
+    ai_dependency_flagged: bool = False
 
     durable_understanding_score: float
     dus_formula: str
@@ -186,6 +188,8 @@ class FacultyTopicSummary(BaseModel):
     low_retention_flag: bool
     transfer_failure_flag: bool
     overconfidence_flag: bool
+    ai_dependency_flag: bool = False
+    avg_ai_dependency_score: float = 0.0
 
 
 class FacultyDashboard(BaseModel):
@@ -195,5 +199,6 @@ class FacultyDashboard(BaseModel):
     low_retention_topics: list[str]
     transfer_failure_topics: list[str]
     overconfidence_hotspots: list[str]
+    ai_risk_students: list[str] = []
     dus_distribution: list[HistogramBucket]
     explanation: str

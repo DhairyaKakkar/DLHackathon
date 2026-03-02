@@ -1,0 +1,26 @@
+task: classification
+
+model:
+  name: efficientnet_b0
+  pretrained: true
+  num_classes: 10
+  labels: null  # set to list of class names for your dataset
+
+data:
+  image_size: 224
+  batch_size: 64
+  num_workers: 4
+  augmentation: default
+
+training:
+  epochs: 20
+  lr: 0.001
+  optimizer: adamw
+  scheduler: cosine
+  weight_decay: 0.01
+  early_stopping_patience: 5
+  mixed_precision: true
+
+inference:
+  device: auto
+  confidence_threshold: 0.5

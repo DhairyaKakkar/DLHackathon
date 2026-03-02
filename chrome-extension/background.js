@@ -15,11 +15,12 @@ const DEFAULT_SETTINGS = {
   allowlist: [
     "file://",
     "localhost",
-    "youtube.com",
     "blackboard.com",
     "canvas.instructure.com",
     "moodle.org",
     "notion.site",
+    "khanacademy.org",
+    "youtube.com",
   ],
 };
 
@@ -82,8 +83,18 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true; // keep channel open for async sendResponse
   }
 
-  // ── API proxy: content scripts on HTTPS pages (e.g. YouTube) cannot fetch
-  // http://localhost directly due to CSP. Route all API calls through here.
+  if (msg.type === "EALE_CAPTURE_SCREENSHOT") {
+    chrome.tabs.captureVisibleTab(null, { format: "png" }, (dataUrl) => {
+      if (chrome.runtime.lastError || !dataUrl) {
+        sendResponse({ ok: false });
+      } else {
+        sendResponse({ ok: true, dataUrl });
+      }
+    });
+    return true; // async
+  }
+
+  // API proxy for pages with restrictive CSP/connect-src policies.
   if (msg.type === "EALE_API_FETCH") {
     fetch(msg.url, msg.options)
       .then(async (res) => {
@@ -91,8 +102,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({ ok: res.ok, status: res.status, body });
       })
       .catch((err) => {
-        sendResponse({ ok: false, error: err.message });
+        sendResponse({ ok: false, error: String(err?.message || err) });
       });
-    return true; // keep channel open for async sendResponse
+    return true; // async
   }
 });

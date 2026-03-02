@@ -243,6 +243,57 @@ def compute_calibration(
     return round(calibration_score, 2), overconfidence_gap, explanation, bin_details
 
 
+# ─── AI-Dependency Score ──────────────────────────────────────────────────────
+
+def compute_ai_dependency_score(
+    mastery: float,
+    retention: float,
+    transfer: float,
+    overconfidence_gap: float,
+) -> tuple[float, bool, str]:
+    """
+    Compute AI-Dependency risk score (0–100).
+
+    High score = student likely relying on AI tools to answer rather than learning.
+    Three signals:
+      1. Retention collapse  — mastery >> retention (aced it live, forgot immediately)
+      2. Transfer gap        — mastery >> transfer  (passes exact questions, fails variants)
+      3. Calibration paradox — high mastery + low retention + ≈ perfect initial calibration
+                               (consistent with copying: confident + correct at first, no recall later)
+
+    Returns (score, flagged, label).
+    """
+    # Signal 1: how far mastery exceeds retention
+    retention_collapse = max(0.0, mastery - retention) / 100.0
+
+    # Signal 2: how far mastery exceeds transfer
+    transfer_gap = max(0.0, mastery - transfer) / 100.0
+
+    # Signal 3: suspiciously well-calibrated initially but no retention
+    # (copying → you're "confident + correct" the first time, but don't remember)
+    calib_paradox = (
+        0.5
+        if mastery >= 70 and abs(overconfidence_gap) < 10 and retention < 60
+        else 0.0
+    )
+
+    raw = 0.45 * retention_collapse + 0.45 * transfer_gap + 0.10 * calib_paradox
+    score = round(min(100.0, max(0.0, raw * 100.0)), 2)
+
+    # Flag only when score is high AND mastery is at least moderate
+    # (low-mastery students are just struggling, not necessarily cheating)
+    flagged = score >= 40 and mastery >= 60
+
+    if flagged:
+        label = "AI-Dependent Risk"
+    elif score >= 25 and mastery >= 50:
+        label = "Watch"
+    else:
+        label = "OK"
+
+    return score, flagged, label
+
+
 # ─── Composite ────────────────────────────────────────────────────────────────
 
 def compute_topic_metrics(
@@ -262,6 +313,10 @@ def compute_topic_metrics(
     calibration, overconf_gap, calib_exp, calib_bins = compute_calibration(attempts)
 
     dus = round(0.30 * mastery + 0.30 * retention + 0.25 * transfer + 0.15 * calibration, 2)
+
+    ai_dep_score, ai_dep_flagged, ai_dep_label = compute_ai_dependency_score(
+        mastery, retention, transfer, overconf_gap
+    )
 
     if dus >= 80:
         dus_exp = (
@@ -300,6 +355,9 @@ def compute_topic_metrics(
         "overconfidence_gap": overconf_gap,
         "calibration_explanation": calib_exp,
         "calibration_bins": calib_bins,
+        "ai_dependency_score": ai_dep_score,
+        "ai_dependency_flagged": ai_dep_flagged,
+        "ai_dependency_label": ai_dep_label,
         "durable_understanding_score": dus,
         "dus_formula": "DUS = 0.30 × mastery + 0.30 × retention + 0.25 × transfer + 0.15 × calibration",
         "dus_explanation": dus_exp,

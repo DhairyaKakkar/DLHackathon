@@ -1,0 +1,11 @@
+task: ocr
+
+model:
+  name: easyocr
+  languages:
+    - en
+  lang: eng    # for tesseract
+  psm: 3      # for tesseract
+
+inference:
+  device: auto
