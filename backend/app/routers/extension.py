@@ -258,38 +258,11 @@ def get_extension_context(
                     mode="LLM",
                     context_hint=payload.context_hint,
                 )
-        # Rate-limited or LLM failed — fall through to due tasks / keyword / random
+        # Rate-limited or LLM failed — fall through to keyword / random
+        # NOTE: Due tasks (retests) are intentionally excluded from the extension.
+        # They are surfaced only in the student dashboard (/student/:id/tasks).
 
-    # ── 2: Due tasks (when LLM is disabled or failed) ─────────────────────────
-    now = datetime.utcnow()
-    due_task = (
-        db.query(ScheduledTask)
-          .filter(
-              ScheduledTask.student_id == student.id,
-              ScheduledTask.completed_at.is_(None),
-              ScheduledTask.due_at <= now,
-          )
-          .order_by(ScheduledTask.due_at)
-          .first()
-    )
-
-    if due_task:
-        q = due_task.question
-        topic = db.query(Topic).filter(Topic.id == q.topic_id).first()
-        return ExtensionContextOut(
-            task_id=due_task.id,
-            task_type=due_task.task_type.value,
-            topic_name=topic.name if topic else "Unknown",
-            question=QuestionOut.model_validate(q),
-            rationale=(
-                f"You have a due {due_task.task_type.value} task on this question "
-                f"(was due {due_task.due_at.strftime('%b %d')})."
-            ),
-            mode="DUE_TASK",
-            context_hint=payload.context_hint,
-        )
-
-    # ── 3: Keyword-inferred topic ─────────────────────────────────────────────
+    # ── 2: Keyword-inferred topic ─────────────────────────────────────────────
     page_content = payload.page_text or payload.page_url
     inferred_topic = _infer_topic_keyword(page_content, db)
     if inferred_topic:
@@ -308,7 +281,7 @@ def get_extension_context(
                 context_hint=payload.context_hint,
             )
 
-    # ── 4: Random fallback ────────────────────────────────────────────────────
+    # ── 3: Random fallback ────────────────────────────────────────────────────
     q = _pick_any_question(student.id, db)
     if not q:
         raise HTTPException(status_code=404, detail="No questions available")

@@ -1102,6 +1102,9 @@
       _activeAudio.volume = 0.9;
     }
 
+    // Store html for fullscreen
+    const _lessonHtml = lessonData.html;
+
     renderPanel(`
       <div class="panel-header">
         <div>
@@ -1112,7 +1115,10 @@
       </div>
       <div id="eale-video-wrap" style="padding:4px 16px 6px;"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 16px 14px;gap:8px;">
-        <button id="eale-audio-btn">🔊 Narration</button>
+        <div style="display:flex;gap:6px;">
+          <button id="eale-audio-btn">🔊 Narration</button>
+          <button id="eale-fullscreen-btn" title="Open fullscreen" style="background:none;border:1.5px solid #e5e7eb;border-radius:7px;padding:5px 10px;font-size:12px;font-weight:600;color:#4b5563;cursor:pointer;">⛶ Fullscreen</button>
+        </div>
         <button class="lesson-nav primary" id="ls-quiz-btn">Quiz me →</button>
       </div>
     `);
@@ -1133,6 +1139,15 @@
         _activeAudio.pause();
         audioBtnEl.textContent = "🔇 Paused";
       }
+    });
+
+    // Fullscreen — open in new tab
+    panel.querySelector("#eale-fullscreen-btn")?.addEventListener("click", () => {
+      const blob = new Blob([_lessonHtml], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+      // Revoke after a short delay (tab has had time to load it)
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
     });
 
     // Quiz button

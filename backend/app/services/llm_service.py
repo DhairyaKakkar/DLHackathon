@@ -527,53 +527,81 @@ class LLMVideoLesson(BaseModel):
 
 
 _VIDEO_LESSON_HTML_SYSTEM = """\
-You are an expert educational animator and front-end developer.
-Create a COMPLETE, self-contained HTML file that plays as an animated educational video.
+You are a world-class educational animator — think 3Blue1Brown, Khan Academy, and MIT OpenCourseWare combined.
+Produce a COMPLETE, self-contained HTML file: a cinematic 80-second animated lesson.
+Displayed in a 900×600px window (fullscreen capable). Auto-plays immediately. ZERO user interaction required.
 
-TARGET: displayed in a 440x320px sandboxed iframe. Auto-plays like a video — no user clicks needed.
+━━━ STRUCTURE ━━━
+4 scenes × 20 seconds each = 80 seconds total.
+Use requestAnimationFrame for all animations (smooth 60fps).
+Scene transitions: 1s cross-fade via CSS opacity.
+Global progress bar at bottom fills 0→100% over 80s.
 
-REQUIRED STRUCTURE:
-- 4 scenes, each 18 seconds (72 seconds total)
-- Smooth 0.8s CSS opacity fade between scenes (auto-advance via setInterval)
-- A progress bar at the bottom that animates from 0% to 100% over 72 seconds
-- After scene 4, loop back to scene 1
+━━━ EACH SCENE MUST HAVE ━━━
+1. A scene label chip (e.g. "01 / INTUITION") — top-left, small caps
+2. A bold headline (18–22px)
+3. A FULL-WIDTH CANVAS (860×260px) with a live, running animation specific to the topic
+4. 1–2 lines of caption text below the canvas
 
-SCENE LAYOUT (each scene):
-- A large bold TOPIC TITLE at the very top (same every scene, small font)
-- A SCENE TITLE (medium, bold, scene-specific — what this scene teaches)
-- A VISUAL (SVG or canvas drawing — must be topic-specific and animated)
-- 2-3 lines of EXPLANATION TEXT below the visual
+━━━ CANVAS ANIMATION QUALITY — THIS IS THE MOST IMPORTANT PART ━━━
+Every canvas must run a smooth, purpose-built animation using requestAnimationFrame. Examples:
 
-VISUAL REQUIREMENTS — choose the best for the topic:
-- Sorting algorithms: animated SVG bar chart that shows bars being compared/swapped
-- Binary search / arrays: SVG row of labeled boxes, a pointer moving, highlighting
-- Trees / graphs: SVG nodes (circles) and edges (lines), traversal path highlighted
-- Complexity / Big-O: SVG line chart with labelled curves (O(1), O(log n), O(n), O(n²))
-- Recursion: SVG call-stack boxes stacking and unstacking
-- Hash tables: SVG key-value grid with arrow from key to bucket
-- General concept: animated SVG diagram with labeled parts, CSS stroke animation
-- Code: animated typing effect in a styled <pre> block using JS character-by-character append
+• Projectile / physics: animate a ball along a parabolic arc; draw velocity vectors Vx (horizontal arrow,
+  constant) and Vy (vertical arrow, shrinking then flipping); label with equations; show trajectory trail
 
-ANIMATION TECHNIQUES — use at least 2:
-- CSS @keyframes fadeInUp for text paragraphs
-- CSS @keyframes on SVG strokeDashoffset for line/arrow drawing
-- JS setInterval or requestAnimationFrame for bar charts, pointer movement
-- CSS @keyframes pulse or bounce for highlighting
+• Sorting (bubble/merge/quick): animate colored bars; highlight comparisons in yellow, swaps in red;
+  show pass counter; smooth height transitions
 
-STYLE:
-- body background: #0f172a (dark navy). Text: white. Font: system-ui, Arial (no CDN)
-- Scene 1 accent: #6366f1 (indigo), Scene 2: #f59e0b (amber), Scene 3: #10b981 (emerald), Scene 4: #ef4444 (red)
-- Each scene has a 4px solid left-border in the accent color, rounded card
-- Progress bar: thin (4px) bar at very bottom of body, fills with the accent color of current scene
+• Binary search: draw array boxes; animate a "pointer" arrow moving left/right; highlight mid in indigo,
+  eliminated half in grey; show iteration counter
 
-CONSTRAINTS:
-- All CSS and JS inline — ZERO external dependencies, no CDN links, no fetch()
-- Must work in sandbox="allow-scripts" iframe
-- No alert(), confirm(), prompt()
-- SVG viewBox must be set; canvas must have explicit width/height attributes
-- Each visual must directly illustrate the specific topic (no generic decorations)
+• Binary tree / BST: draw nodes as circles with values; animate traversal by highlighting nodes one by one
+  in sequence; draw edges as lines; show current path
 
-RETURN ONLY THE COMPLETE HTML FILE CONTENTS. No markdown fences, no explanation.
+• Big-O complexity: draw a coordinate grid; animate curves growing (O(1) flat, O(log n), O(n), O(n²))
+  with labels; highlight current topic's curve
+
+• Neural network / ML: animate nodes lighting up layer by layer; show weight connections as lines
+  brightening; display loss decreasing
+
+• Calculus / derivatives: draw a curve (e.g. x²); animate a tangent line sweeping along it; show slope
+  value changing; fill area under curve with gradient
+
+• Recursion / call stack: animate boxes stacking (push) then unstacking (pop); show function name and
+  argument in each box; highlight active frame
+
+• Hash table: animate key → hash function → bucket index; show collision chaining; highlight probing
+
+• Linked list: animate pointer arrows moving node to node; show insert/delete by unlinking and relinking
+
+• For ANY other topic: invent the most visually compelling animated diagram that makes the concept click.
+  Use particle systems, wave animations, gradient flows — whatever is most insightful.
+
+━━━ VISUAL STYLE ━━━
+Background: #050d1a (deep space black)
+Text: #e2e8f0
+Accent palette per scene: [#818cf8, #fb923c, #34d399, #f87171] (indigo, orange, green, red)
+Canvas background: #0f172a with subtle grid lines (#1e293b, 1px)
+Animated elements: bright fills (#818cf8, #fbbf24, #34d399) with glow (box-shadow or canvas shadowBlur=15)
+Typography: 'Segoe UI', system-ui (no CDN). Scene label: 10px, letter-spacing 0.15em, opacity 0.5
+Progress bar: 3px, gradient from accent[0] to accent[3]
+
+━━━ CODE QUALITY ━━━
+- All state in const/let at top of <script>
+- Each scene has its own animate_sceneN() function using requestAnimationFrame
+- Cancel previous animation frame when switching scenes (store frameId, call cancelAnimationFrame)
+- Canvas: clear with fillRect each frame; use ctx.save()/ctx.restore() around transforms
+- Smooth interpolation: use lerp() — const lerp = (a,b,t) => a + (b-a)*t
+- Time-based animation: use (Date.now() - sceneStartTime) / sceneDuration for t (0→1)
+
+━━━ HARD CONSTRAINTS ━━━
+- Self-contained: ALL CSS + JS inline. Zero external dependencies. No CDN. No fetch().
+- Works in sandbox="allow-scripts" iframe
+- No alert(), confirm(), prompt(), document.cookie, localStorage
+- canvas elements must have explicit width and height attributes
+- HTML must be complete and valid — opening and closing tags balanced
+
+RETURN ONLY THE RAW HTML. No markdown fences, no explanation, no commentary.
 """
 
 _NARRATION_QUIZ_SYSTEM = """\
@@ -631,7 +659,7 @@ def generate_video_lesson(
     if question_text:
         context_parts.append(f"The student just got this wrong: {question_text}")
     if page_context:
-        context_parts.append(f"Page context:\n{page_context[:800]}")
+        context_parts.append(f"Page context:\n{page_context[:1500]}")
     user_context = "\n".join(context_parts)
 
     try:
@@ -639,13 +667,13 @@ def generate_video_lesson(
 
         # ── Call 1: HTML animation ────────────────────────────────────────────
         html_resp = client.chat.completions.create(
-            model=settings.OPENAI_MODEL,
+            model="gpt-4o",   # always use full gpt-4o for max quality output
             messages=[
                 {"role": "system", "content": _VIDEO_LESSON_HTML_SYSTEM},
                 {"role": "user",   "content": user_context},
             ],
-            max_tokens=4096,
-            temperature=0.5,
+            max_tokens=8000,
+            temperature=0.4,
         )
         animation_html = html_resp.choices[0].message.content.strip()
         # Strip markdown fences if GPT wraps in ```html ... ```
