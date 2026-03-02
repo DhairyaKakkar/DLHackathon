@@ -172,6 +172,19 @@ Return ONLY a valid JSON object:
 Threshold: score >= 0.7 is treated as correct.
 """
 
+_PROVE_IT_SYSTEM = """\
+You are an academic integrity assistant. A student may have copy-pasted an answer.
+Generate a short follow-up question to verify they genuinely understand what they submitted.
+
+Rules:
+- Ask them to explain ONE specific concept from their answer in their own words
+- Make it impossible to answer without understanding the underlying idea
+- Keep it one sentence ending with a question mark
+- Do NOT repeat the original question
+
+Return ONLY the follow-up question text. No JSON. No preamble.
+"""
+
 
 # ─── Public API ───────────────────────────────────────────────────────────────
 
@@ -415,4 +428,34 @@ def assess_video_difficulty(
         return None
     except Exception as exc:
         logger.warning("[LLM] Video difficulty assessment failed: %s", exc)
+        return None
+
+
+def generate_prove_it_question(
+    question_text: str,
+    student_answer: str,
+    correct_answer: str,
+) -> Optional[str]:
+    """Generate a follow-up 'Prove It' question when paste is detected."""
+    if not settings.OPENAI_API_KEY:
+        return None
+    try:
+        client = _openai_client()
+        resp = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": _PROVE_IT_SYSTEM},
+                {"role": "user", "content": (
+                    f"Original question: {question_text}\n"
+                    f"Student's answer: {student_answer}\n"
+                    f"Correct answer: {correct_answer}\n\n"
+                    "Generate a follow-up question."
+                )},
+            ],
+            max_tokens=128,
+            temperature=0.5,
+        )
+        return resp.choices[0].message.content.strip()
+    except Exception as exc:
+        logger.warning("[LLM] Prove-it generation failed: %s", exc)
         return None

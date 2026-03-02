@@ -7,6 +7,7 @@ import {
   TrendingDown,
   Shuffle,
   Target,
+  Bot,
   Users,
   BookOpen,
   BarChart3,
@@ -189,7 +190,7 @@ export default function FacultyDashboardPage() {
             </div>
 
             {/* Risk cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
               <RiskCard
                 title="Low Retention Topics"
                 topics={data.low_retention_topics}
@@ -213,6 +214,14 @@ export default function FacultyDashboardPage() {
                 iconBg="bg-amber-50"
                 iconColor="text-amber-500"
                 emptyMsg="No overconfidence hotspots — great!"
+              />
+              <RiskCard
+                title="AI Dependency Risk"
+                topics={data.ai_risk_students}
+                icon={Bot}
+                iconBg="bg-orange-50"
+                iconColor="text-orange-500"
+                emptyMsg="No AI-dependency risk detected — great!"
               />
             </div>
 
@@ -328,9 +337,15 @@ export default function FacultyDashboardPage() {
                                 overconf
                               </span>
                             )}
+                            {t.ai_dependency_flag && (
+                              <span className="text-xs bg-orange-50 text-orange-600 border border-orange-100 px-1.5 py-0.5 rounded-full">
+                                ai-risk
+                              </span>
+                            )}
                             {!t.low_retention_flag &&
                               !t.transfer_failure_flag &&
-                              !t.overconfidence_flag && (
+                              !t.overconfidence_flag &&
+                              !t.ai_dependency_flag && (
                                 <span className="text-xs text-gray-300">—</span>
                               )}
                           </div>

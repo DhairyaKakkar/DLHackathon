@@ -21,6 +21,7 @@
   let settings = {};
   let currentContext = null; // ExtensionContextOut from backend
   let _handwrittenB64 = null; // base64 image from handwriting upload
+  let _answerPasted = false;
 
   // ── Attention monitoring state ─────────────────────────────────────────────
   let _attentionStream = null, _attentionVideo = null;
@@ -406,6 +407,7 @@
     state = "quiz";
     currentContext = ctx;
     _handwrittenB64 = null; // reset on each new quiz
+    _answerPasted = false;
     const q = ctx.question;
     const isMcq = q.question_type === "MCQ";
     const mode = ctx.mode || "RANDOM";
@@ -516,6 +518,12 @@
       if (fileInput) fileInput.value = "";
     });
 
+    // Paste detection
+    const textInput = panel.querySelector("#eale-text-ans");
+    if (textInput) {
+      textInput.addEventListener("paste", () => { _answerPasted = true; });
+    }
+
     // Submit
     panel.querySelector("#eale-submit")?.addEventListener("click", handleSubmit);
   }
@@ -526,6 +534,13 @@
     const dusLine = data.updated_dus != null
       ? `<p style="font-size:11px;color:#6b7280;margin-top:8px;">Updated DUS: <strong style="color:#4f46e5">${data.updated_dus}</strong>/100</p>`
       : "";
+    const proveItHtml = data.prove_it_question ? `
+      <div style="margin-top:10px;padding:10px 12px;background:#fff7ed;border:1.5px solid #fed7aa;border-radius:8px;">
+        <p style="font-size:11px;font-weight:700;color:#c2410c;margin-bottom:4px;">🔍 Prove It</p>
+        <p style="font-size:12px;color:#431407;line-height:1.5;">${escHtml(data.prove_it_question)}</p>
+        <p style="font-size:10px;color:#9a3412;margin-top:4px;font-style:italic;">Answer this verbally to confirm your understanding.</p>
+      </div>
+    ` : "";
     renderPanel(`
       ${header(currentContext?.topic_name || "Result", null, currentContext?.mode, currentContext?.context_hint)}
       <div class="panel-body">
@@ -537,6 +552,7 @@
           ${!isCorrect ? `<p class="correct-answer-note">Correct answer: <span>${escHtml(data.correct_answer)}</span></p>` : ""}
           ${dusLine}
         </div>
+        ${proveItHtml}
         <button class="done-btn" id="eale-done-btn">Done</button>
       </div>
     `);
@@ -563,6 +579,8 @@
 
     const confidence = parseInt(panel.querySelector("#eale-conf")?.value || "5", 10);
     const reasoning = panel.querySelector("#eale-reasoning")?.value?.trim() || null;
+    const answerPasted = _answerPasted;
+    _answerPasted = false;
 
     const submitBtn = panel.querySelector("#eale-submit");
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Submitting…"; }
@@ -586,6 +604,7 @@
           confidence,
           reasoning,
           handwritten_image: _handwrittenB64 ?? null,
+          answer_pasted: answerPasted,
         }),
         signal: controller.signal,
       });

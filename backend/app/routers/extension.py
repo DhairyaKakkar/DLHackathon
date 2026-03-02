@@ -86,6 +86,7 @@ class ExtensionSubmitRequest(BaseModel):
     confidence: int           # 1–10
     reasoning: Optional[str] = None
     handwritten_image: Optional[str] = None  # base64 image for vision grading
+    answer_pasted: Optional[bool] = None
 
 
 class ExtensionSubmitOut(BaseModel):
@@ -94,6 +95,7 @@ class ExtensionSubmitOut(BaseModel):
     correct_answer: str
     explanation: str
     updated_dus: Optional[float] = None   # overall DUS after this attempt
+    prove_it_question: Optional[str] = None
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -448,12 +450,23 @@ def submit_extension_attempt(
     # ── Recompute overall DUS ─────────────────────────────────────────────────
     updated_dus = _compute_overall_dus(db, student.id)
 
+    # "Prove It" follow-up when student pasted their answer
+    prove_it_question: Optional[str] = None
+    if payload.answer_pasted and settings.USE_LLM_GRADING and settings.OPENAI_API_KEY:
+        from app.services.llm_service import generate_prove_it_question
+        prove_it_question = generate_prove_it_question(
+            question_text=question.text,
+            student_answer=payload.answer,
+            correct_answer=question.correct_answer,
+        )
+
     return ExtensionSubmitOut(
         correct=is_correct,
         feedback=feedback,
         correct_answer=question.correct_answer,
         explanation=explanation,
         updated_dus=updated_dus,
+        prove_it_question=prove_it_question,
     )
 
 

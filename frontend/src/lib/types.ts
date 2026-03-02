@@ -101,6 +101,8 @@ export interface TopicMetrics {
   overconfidence_gap: number;
   calibration_explanation: string;
   calibration_bins: CalibrationBin[];
+  ai_dependency_score: number;
+  ai_dependency_flagged: boolean;
   durable_understanding_score: number;
   dus_formula: string;
   dus_explanation: string;
@@ -135,6 +137,8 @@ export interface FacultyTopicSummary {
   low_retention_flag: boolean;
   transfer_failure_flag: boolean;
   overconfidence_flag: boolean;
+  ai_dependency_flag: boolean;
+  avg_ai_dependency_score: number;
 }
 
 export interface FacultyDashboard {
@@ -144,6 +148,7 @@ export interface FacultyDashboard {
   low_retention_topics: string[];
   transfer_failure_topics: string[];
   overconfidence_hotspots: string[];
+  ai_risk_students: string[];
   dus_distribution: HistogramBucket[];
   explanation: string;
 }
