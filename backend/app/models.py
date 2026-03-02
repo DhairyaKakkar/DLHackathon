@@ -72,8 +72,8 @@ class Question(Base):
     topic = relationship("Topic", back_populates="questions")
     variants = relationship(
         "Question",
-        foreign_keys=[original_question_id],
-        backref="original",
+        primaryjoin="Question.id == remote(Question.original_question_id)",
+        foreign_keys="[Question.original_question_id]",
         lazy="dynamic",
     )
     attempts = relationship("Attempt", back_populates="question", lazy="dynamic")

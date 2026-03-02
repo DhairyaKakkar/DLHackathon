@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CS 301 — Algorithms | FakeMoodle LMS</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f4f6f8; color: #2c3e50; line-height: 1.65;
+    }
+
+    /* LMS top bar */
+    .lms-bar {
+      background: #1a3a5c; color: #fff; padding: 0 24px;
+      display: flex; align-items: center; height: 52px; gap: 32px;
+    }
+    .lms-logo { font-size: 20px; font-weight: 800; letter-spacing: -.5px; }
+    .lms-logo span { color: #f39c12; }
+    .lms-nav { display: flex; gap: 20px; }
+    .lms-nav a { color: rgba(255,255,255,.75); text-decoration: none; font-size: 13px; }
+    .lms-nav a:hover { color: #fff; }
+    .lms-user { margin-left: auto; font-size: 13px; opacity: .8; }
+
+    /* Breadcrumb */
+    .breadcrumb {
+      background: #fff; border-bottom: 1px solid #e1e4e8;
+      padding: 10px 24px; font-size: 12px; color: #6b7280;
+    }
+    .breadcrumb a { color: #1a3a5c; text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+
+    /* Layout */
+    .layout { display: flex; max-width: 1100px; margin: 24px auto; gap: 20px; padding: 0 20px; }
+
+    /* Sidebar */
+    .sidebar { width: 220px; flex-shrink: 0; }
+    .sidebar-card {
+      background: #fff; border: 1px solid #dce1e7; border-radius: 8px;
+      overflow: hidden; margin-bottom: 14px;
+    }
+    .sidebar-card h3 {
+      background: #1a3a5c; color: #fff; font-size: 12px; font-weight: 700;
+      padding: 8px 12px; text-transform: uppercase; letter-spacing: .04em;
+    }
+    .sidebar-card ul { list-style: none; }
+    .sidebar-card li a {
+      display: block; padding: 8px 12px; font-size: 12px; color: #2c3e50;
+      text-decoration: none; border-bottom: 1px solid #f0f2f4;
+    }
+    .sidebar-card li a:hover { background: #f0f4f8; }
+    .sidebar-card li a.active { background: #e8f0fe; color: #1a3a5c; font-weight: 600; }
+
+    /* Main content */
+    .main { flex: 1; min-width: 0; }
+    .content-card {
+      background: #fff; border: 1px solid #dce1e7; border-radius: 8px;
+      padding: 28px 32px; margin-bottom: 16px;
+    }
+    h1 { font-size: 22px; font-weight: 700; color: #1a3a5c; margin-bottom: 6px; }
+    .module-meta { font-size: 12px; color: #6b7280; margin-bottom: 20px; }
+
+    h2 { font-size: 16px; font-weight: 700; color: #1a3a5c; margin: 22px 0 8px; }
+    h3 { font-size: 14px; font-weight: 600; color: #374151; margin: 16px 0 6px; }
+    p  { font-size: 14px; color: #374151; margin-bottom: 10px; }
+
+    pre {
+      background: #1e293b; color: #e2e8f0; border-radius: 8px;
+      padding: 14px 16px; font-size: 12px; overflow-x: auto;
+      margin: 10px 0 14px; line-height: 1.6;
+    }
+    code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 12px; color: #1e293b; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 14px; }
+    th { background: #f8fafc; padding: 8px 12px; text-align: left; font-weight: 700; color: #374151; border: 1px solid #e5e7eb; }
+    td { padding: 8px 12px; border: 1px solid #e5e7eb; color: #4b5563; }
+
+    .callout {
+      background: #fef9c3; border-left: 4px solid #f59e0b; border-radius: 4px;
+      padding: 10px 14px; font-size: 13px; color: #78350f; margin-bottom: 14px;
+    }
+    .callout strong { color: #92400e; }
+  </style>
+</head>
+<body>
+
+  <!-- LMS Navigation Bar -->
+  <div class="lms-bar">
+    <div class="lms-logo">Fake<span>Moodle</span></div>
+    <nav class="lms-nav">
+      <a href="#">Dashboard</a>
+      <a href="#">Courses</a>
+      <a href="#">Calendar</a>
+      <a href="#">Grades</a>
+    </nav>
+    <span class="lms-user">👤 Alice Chen</span>
+  </div>
+
+  <!-- Breadcrumb -->
+  <div class="breadcrumb">
+    <a href="#">Home</a> › <a href="#">CS 301: Algorithm Design</a> ›
+    Week 7: Binary Search &amp; Sorting
+  </div>
+
+  <!-- Main Layout -->
+  <div class="layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-card">
+        <h3>Course Modules</h3>
+        <ul>
+          <li><a href="#">Week 1 — Intro & Big O</a></li>
+          <li><a href="#">Week 2 — Recursion</a></li>
+          <li><a href="#">Week 3 — Sorting</a></li>
+          <li><a href="#">Week 4 — Data Structures</a></li>
+          <li><a href="#">Week 5 — Graphs</a></li>
+          <li><a href="#">Week 6 — Dynamic Programming</a></li>
+          <li><a href="#" class="active">Week 7 — Binary Search</a></li>
+          <li><a href="#">Week 8 — Greedy Algorithms</a></li>
+        </ul>
+      </div>
+      <div class="sidebar-card">
+        <h3>Resources</h3>
+        <ul>
+          <li><a href="#">Lecture Slides</a></li>
+          <li><a href="#">Practice Problems</a></li>
+          <li><a href="#">Discussion Board</a></li>
+          <li><a href="#">Submit Assignment</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Content -->
+    <main class="main">
+      <div class="content-card">
+        <h1>Week 7: Binary Search and Efficient Sorting</h1>
+        <div class="module-meta">
+          CS 301 — Algorithm Design &amp; Analysis · Prof. R. Knuth · 45 min read
+        </div>
+
+        <!-- ──────────────────── Binary Search ──────────────────── -->
+        <h2>1. Binary Search</h2>
+        <p>
+          Binary search is a <strong>divide and conquer</strong> algorithm that efficiently
+          locates a target value in a <em>sorted</em> array. Instead of examining every
+          element, it repeatedly halves the search space, achieving
+          <strong>O(log n) time complexity</strong>.
+        </p>
+        <p>
+          The key invariant: at every step, if the target exists in the array, it must lie
+          within the current <code>[low, high]</code> window.
+        </p>
+
+        <h3>Algorithm</h3>
+        <pre>
+def binary_search(arr, target):
+    low, high = 0, len(arr) - 1
+
+    while low &lt;= high:
+        mid = (low + high) // 2          # integer division avoids overflow
+
+        if arr[mid] == target:
+            return mid                   # found
+        elif arr[mid] &lt; target:
+            low = mid + 1                # target in right half
+        else:
+            high = mid - 1              # target in left half
+
+    return -1                           # not found</pre>
+
+        <div class="callout">
+          <strong>⚠ Common mistake:</strong> Using <code>mid = (low + high) / 2</code>
+          with integer overflow in C/Java. The safe form is
+          <code>mid = low + (high - low) // 2</code>.
+        </div>
+
+        <h3>Complexity Analysis</h3>
+        <table>
+          <tr><th>Case</th><th>Time</th><th>Space</th></tr>
+          <tr><td>Best</td><td>O(1) — target is the midpoint</td><td>O(1)</td></tr>
+          <tr><td>Average</td><td>O(log n)</td><td>O(1)</td></tr>
+          <tr><td>Worst</td><td>O(log n)</td><td>O(1)</td></tr>
+        </table>
+
+        <!-- ──────────────────── Sorting ──────────────────── -->
+        <h2>2. Comparison-Based Sorting</h2>
+        <p>
+          A fundamental result in algorithm theory is that <strong>any comparison-based
+          sort</strong> requires at least <strong>O(n log n)</strong> comparisons in the
+          worst case. This is the theoretical lower bound, proven via a decision-tree argument.
+        </p>
+
+        <h3>Merge Sort</h3>
+        <p>
+          Merge sort is a stable, O(n log n) algorithm based on the
+          <strong>divide and conquer</strong> paradigm. It splits the array in half, sorts
+          each half recursively, then merges them in linear time.
+        </p>
+        <pre>
+def merge_sort(arr):
+    if len(arr) &lt;= 1:
+        return arr
+    mid = len(arr) // 2
+    left  = merge_sort(arr[:mid])
+    right = merge_sort(arr[mid:])
+    return merge(left, right)
+
+def merge(left, right):
+    result, i, j = [], 0, 0
+    while i &lt; len(left) and j &lt; len(right):
+        if left[i] &lt;= right[j]:
+            result.append(left[i]); i += 1
+        else:
+            result.append(right[j]); j += 1
+    return result + left[i:] + right[j:]</pre>
+
+        <h3>Quick Sort</h3>
+        <p>
+          Quick sort selects a <strong>pivot</strong> element and partitions the array into
+          elements less than, equal to, and greater than the pivot. In practice it is often
+          faster than merge sort due to better cache locality, despite its
+          O(n²) worst-case time complexity.
+        </p>
+
+        <table>
+          <tr><th>Algorithm</th><th>Best</th><th>Average</th><th>Worst</th><th>Stable?</th></tr>
+          <tr><td>Bubble Sort</td><td>O(n)</td><td>O(n²)</td><td>O(n²)</td><td>Yes</td></tr>
+          <tr><td>Merge Sort</td><td>O(n log n)</td><td>O(n log n)</td><td>O(n log n)</td><td>Yes</td></tr>
+          <tr><td>Quick Sort</td><td>O(n log n)</td><td>O(n log n)</td><td>O(n²)</td><td>No</td></tr>
+          <tr><td>Heap Sort</td><td>O(n log n)</td><td>O(n log n)</td><td>O(n log n)</td><td>No</td></tr>
+        </table>
+
+        <!-- ──────────────────── Big O ──────────────────── -->
+        <h2>3. Big O Notation Recap</h2>
+        <p>
+          Big O notation describes the <strong>upper bound</strong> of an algorithm's growth
+          rate. We drop constant factors and lower-order terms.
+        </p>
+        <table>
+          <tr><th>O(…)</th><th>Name</th><th>Example</th></tr>
+          <tr><td>O(1)</td><td>Constant</td><td>Array index lookup</td></tr>
+          <tr><td>O(log n)</td><td>Logarithmic</td><td>Binary search</td></tr>
+          <tr><td>O(n)</td><td>Linear</td><td>Linear scan</td></tr>
+          <tr><td>O(n log n)</td><td>Linearithmic</td><td>Merge sort</td></tr>
+          <tr><td>O(n²)</td><td>Quadratic</td><td>Bubble sort</td></tr>
+          <tr><td>O(2ⁿ)</td><td>Exponential</td><td>Subset enumeration</td></tr>
+        </table>
+
+        <div class="callout">
+          <strong>💡 Study tip:</strong> When you see a while-loop that halves its search
+          space each iteration, the complexity is almost always O(log n). This is the
+          hallmark of binary search and balanced BST operations.
+        </div>
+
+        <!-- ──────────────────── Dynamic Programming ──────────────────── -->
+        <h2>4. Introduction to Dynamic Programming</h2>
+        <p>
+          Dynamic programming (DP) solves complex problems by breaking them into
+          overlapping sub-problems and storing intermediate results (memoization or
+          tabulation) to avoid redundant computation.
+        </p>
+        <p>
+          A DP solution is applicable when the problem has:
+        </p>
+        <ul style="padding-left:20px;margin-bottom:10px;font-size:14px;color:#374151;">
+          <li><strong>Optimal substructure</strong> — the optimal solution contains optimal sub-solutions</li>
+          <li><strong>Overlapping subproblems</strong> — the same sub-problems are solved multiple times</li>
+        </ul>
+
+        <h3>Example: Fibonacci with Memoization</h3>
+        <pre>
+def fib(n, memo={}):
+    if n in memo: return memo[n]
+    if n &lt;= 1:   return n
+    memo[n] = fib(n-1, memo) + fib(n-2, memo)
+    return memo[n]
+        </pre>
+        <p>
+          Without memoization: O(2ⁿ). With memoization: O(n) time, O(n) space.
+          This dramatic improvement illustrates why dynamic programming is a powerful
+          technique for algorithm design.
+        </p>
+      </div>
+
+      <!-- Footer nav -->
+      <div style="display:flex;justify-content:space-between;font-size:13px;padding:0 4px;">
+        <a href="#" style="color:#1a3a5c;">← Week 6: Dynamic Programming</a>
+        <a href="#" style="color:#1a3a5c;">Week 8: Greedy Algorithms →</a>
+      </div>
+    </main>
+  </div>
+
+</body>
+</html>

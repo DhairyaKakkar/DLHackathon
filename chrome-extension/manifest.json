@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "EALE – Evidence-Aligned Learning",
+  "short_name": "EALE",
+  "version": "1.0.0",
+  "description": "Micro-quizzes on any learning page. Measures durable understanding via retention, transfer & calibration.",
+
+  "permissions": ["storage", "alarms", "activeTab"],
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "http://localhost:3000/*",
+    "*://*.blackboard.com/*",
+    "*://*.canvas.instructure.com/*",
+    "*://*.moodle.org/*",
+    "*://*.notion.site/*",
+    "file:///*"
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16":  "icons/icon16.png",
+      "48":  "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "EALE Learning Check"
+  },
+
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+
+  "icons": {
+    "16":  "icons/icon16.png",
+    "48":  "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

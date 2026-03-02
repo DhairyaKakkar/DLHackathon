@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EALE Extension — Options</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f8fafc; color: #1e293b; min-height: 100vh;
+      display: flex; justify-content: center; padding: 40px 16px;
+    }
+    .page { width: 100%; max-width: 560px; }
+    header {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 32px;
+    }
+    .logo {
+      width: 36px; height: 36px; background: #4f46e5; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 800; color: #fff;
+    }
+    h1 { font-size: 20px; font-weight: 700; }
+    h1 span { color: #4f46e5; }
+
+    .card {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+      padding: 20px; margin-bottom: 16px;
+    }
+    .card h2 { font-size: 13px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 14px; }
+
+    label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 4px; }
+    .hint  { font-size: 11px; color: #9ca3af; margin-bottom: 8px; }
+    input[type=text], input[type=url], input[type=number], select {
+      width: 100%; padding: 8px 10px; border: 1.5px solid #e5e7eb; border-radius: 8px;
+      font-size: 13px; outline: none; transition: border-color .12s;
+      background: #fff;
+    }
+    input:focus, select:focus { border-color: #4f46e5; }
+
+    .field { margin-bottom: 14px; }
+    .field:last-child { margin-bottom: 0; }
+
+    .row { display: flex; gap: 8px; }
+    .row input { flex: 1; }
+    .add-btn {
+      background: #4f46e5; color: #fff; border: none; border-radius: 8px;
+      padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+      white-space: nowrap;
+    }
+    .add-btn:hover { background: #4338ca; }
+
+    .allowlist { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+    .allowlist-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 7px 10px; background: #f8fafc; border: 1px solid #e5e7eb;
+      border-radius: 8px; font-size: 13px;
+    }
+    .del-btn {
+      background: none; border: none; color: #f87171; cursor: pointer;
+      font-size: 16px; padding: 0 2px; line-height: 1;
+    }
+    .del-btn:hover { color: #ef4444; }
+
+    .footer { display: flex; align-items: center; justify-content: space-between; margin-top: 24px; }
+    .save-btn {
+      background: #4f46e5; color: #fff; border: none; border-radius: 8px;
+      padding: 10px 24px; font-size: 13px; font-weight: 700; cursor: pointer;
+      transition: background .12s;
+    }
+    .save-btn:hover { background: #4338ca; }
+    .status { font-size: 13px; color: #16a34a; font-weight: 600; opacity: 0; transition: opacity .3s; }
+    .status.show { opacity: 1; }
+
+    .demo-keys {
+      background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 8px;
+      padding: 10px 12px; font-size: 12px; color: #4338ca; line-height: 1.6;
+    }
+    .demo-keys strong { color: #3730a3; }
+    code { background: #e0e7ff; padding: 1px 4px; border-radius: 4px; font-size: 11px; }
+
+    .toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 0;
+    }
+    .toggle-row + .toggle-row { border-top: 1px solid #f1f5f9; }
+    .toggle-label { font-size: 13px; font-weight: 600; color: #374151; }
+    .toggle-desc  { font-size: 11px; color: #9ca3af; margin-top: 1px; }
+    .toggle-switch {
+      position: relative; width: 36px; height: 20px; flex-shrink: 0;
+    }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; inset: 0; background: #d1d5db; border-radius: 20px;
+      cursor: pointer; transition: background .2s;
+    }
+    .toggle-slider::before {
+      content: ""; position: absolute; width: 14px; height: 14px;
+      left: 3px; top: 3px; background: #fff; border-radius: 50%;
+      transition: transform .2s;
+    }
+    .toggle-switch input:checked + .toggle-slider { background: #4f46e5; }
+    .toggle-switch input:checked + .toggle-slider::before { transform: translateX(16px); }
+
+    .llm-note {
+      background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;
+      padding: 10px 12px; font-size: 12px; color: #166534; line-height: 1.6;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="logo">E</div>
+      <div>
+        <h1>EALE <span>Options</span></h1>
+      </div>
+    </header>
+
+    <!-- Backend -->
+    <div class="card">
+      <h2>Backend</h2>
+      <div class="field">
+        <label for="backendUrl">API URL</label>
+        <div class="hint">Where your EALE backend is running</div>
+        <input type="url" id="backendUrl" placeholder="http://localhost:8000" />
+      </div>
+    </div>
+
+    <!-- Student -->
+    <div class="card">
+      <h2>Student Identity</h2>
+      <div class="field">
+        <label for="studentApiKey">API Key</label>
+        <div class="hint">Your personal EALE API key</div>
+        <input type="text" id="studentApiKey" placeholder="student-alice-key" />
+      </div>
+      <div class="demo-keys">
+        <strong>Demo keys (from seed data):</strong><br />
+        Alice Chen (fragile mastery): <code>student-alice-key</code><br />
+        Bob Martinez (overconfident): <code>student-bob-key</code>
+      </div>
+    </div>
+
+    <!-- Auto-pop -->
+    <div class="card">
+      <h2>Auto-Pop Timer</h2>
+      <div class="field">
+        <label for="autoPopMinutes">Quiz every N minutes (0 = disabled)</label>
+        <div class="hint">When on an allowed page, automatically trigger a quiz</div>
+        <input type="number" id="autoPopMinutes" min="0" max="120" value="0" />
+      </div>
+    </div>
+
+    <!-- LLM Mode -->
+    <div class="card">
+      <h2>AI (LLM) Mode</h2>
+      <p style="font-size:12px;color:#6b7280;margin-bottom:12px;">
+        Requires <code>USE_LLM_CONTEXT=true</code> / <code>USE_LLM_GRADING=true</code>
+        and <code>OPENAI_API_KEY</code> set on the backend server.
+        These toggles mirror the server-side feature flags for your reference.
+      </p>
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">AI Topic &amp; Question Generation</div>
+          <div class="toggle-desc">OpenAI reads the page and generates a transfer question</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="useLlmContext" />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">AI Short-Answer Grading</div>
+          <div class="toggle-desc">OpenAI grades free-text answers with a rubric</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="useLlmGrading" />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="llm-note">
+        🔒 <strong>Privacy:</strong> Raw page text is never stored. Only the hash and
+        generated question are cached (10 min TTL). Text snippets are capped at 2 000 chars.
+      </div>
+    </div>
+
+    <!-- Allowlist -->
+    <div class="card">
+      <h2>Page Allowlist</h2>
+      <p style="font-size:12px;color:#6b7280;margin-bottom:10px;">
+        The EALE button only activates on pages whose URL contains one of these patterns.
+      </p>
+      <div class="row">
+        <input type="text" id="newPattern" placeholder="e.g. canvas.instructure.com" />
+        <button class="add-btn" id="addPatternBtn">Add</button>
+      </div>
+      <div class="allowlist" id="allowlistEl"></div>
+    </div>
+
+    <div class="footer">
+      <button class="save-btn" id="saveBtn">Save Settings</button>
+      <span class="status" id="statusEl">✓ Saved!</span>
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
