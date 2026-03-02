@@ -8,14 +8,18 @@ dist/
 .venv/
 venv/
 
-# Next.js
-frontend/.next/
-frontend/node_modules/
-frontend/.env.local
+# Next.js / Node
+node_modules/
+.next/
+*.tsbuildinfo
 
-# Environment
+# Environment & secrets
 .env
+.env.local
 *.env.local
+
+# Lock files (not needed for demo)
+package-lock.json
 
 # macOS
 .DS_Store
