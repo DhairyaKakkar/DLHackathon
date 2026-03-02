@@ -1,0 +1,22 @@
+task: detection
+
+model:
+  name: yolov8n
+  pretrained: true
+  weights: null  # path to custom .pt for fine-tuned YOLO
+
+data:
+  image_size: 640
+  batch_size: 16
+  num_workers: 4
+
+training:
+  epochs: 50
+  lr: 0.01
+  optimizer: sgd
+  scheduler: cosine
+
+inference:
+  device: auto
+  confidence_threshold: 0.5
+  nms_threshold: 0.45
