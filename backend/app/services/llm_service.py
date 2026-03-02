@@ -513,10 +513,12 @@ def generate_prove_it_question(
 
 class LLMVideoLesson(BaseModel):
     topic: str
-    html: str        # complete self-contained HTML animation
-    narration: str   # spoken narration script (used for TTS)
-    audio_b64: str   # OpenAI TTS-1-HD MP3, base64-encoded
+    html: str = ""       # self-contained HTML animation (empty when Sora is used)
+    narration: str       # spoken narration script (used for TTS)
+    audio_b64: str       # OpenAI TTS-1-HD MP3, base64-encoded
     quiz: list[LLMLessonQuiz]
+    video_b64: str = ""  # Sora-generated MP4, base64-encoded (empty if HTML fallback)
+    video_type: str = "html_animation"  # "sora_mp4" | "html_animation"
 
     @field_validator("quiz")
     @classmethod
@@ -525,6 +527,31 @@ class LLMVideoLesson(BaseModel):
             raise ValueError("need at least 1 quiz question")
         return v[:2]
 
+
+_SORA_PROMPT_SYSTEM = """\
+You are a world-class educational video director creating a prompt for Sora (OpenAI's video AI).
+Write a vivid, cinematic 8-second educational video prompt that will produce a stunning animated
+visualization for the given topic.
+
+Your prompt must describe:
+- A smooth, flowing animation that makes the concept visually click
+- Specific visual elements: animated diagrams, graphs, particles, geometric shapes, equations
+- Cinematic quality: soft lens, gentle camera movements (slow zoom or pan), professional lighting
+- Color palette: deep dark background (#050d1a or deep space black), vivid neon-like educational
+  colors (electric blue, bright orange, glowing green, soft white text)
+- Style: 3Blue1Brown / Grant Sanderson mathematical animation meets Pixar-level production
+
+Great prompt examples:
+- "Smooth cinematic animation of binary search: glowing blue array boxes, golden pointer arrow
+  sweeps to middle element, eliminated halves dissolve to dark grey, active region gently zooms in,
+  iteration counter increments, deep space background, professional educational visualization"
+- "A glowing sphere traces a perfect parabolic arc against a dark starfield, real-time velocity
+  vector arrows animate showing Vx (horizontal, constant) and Vy (vertical, shrinking then flipping),
+  golden trajectory trail fades behind it, cinematic slow-motion at apex, physics labels appear
+  with smooth fade-in, 3Blue1Brown style"
+
+Return ONLY the Sora video prompt. No JSON. No preamble. Max 200 words.
+"""
 
 _VIDEO_LESSON_HTML_SYSTEM = """\
 You are a world-class educational animator — think 3Blue1Brown, Khan Academy, and MIT OpenCourseWare combined.
@@ -635,22 +662,94 @@ Rules:
 """
 
 
+def _try_sora_video(client, user_context: str) -> Optional[str]:
+    """
+    Try to generate a Sora video. Returns base64-encoded MP4 bytes, or None on any failure.
+    Polls up to 150 seconds; falls back silently if Sora is unavailable or times out.
+    """
+    import base64
+    import time as _time
+
+    # GPT-4o writes a cinematic Sora prompt
+    prompt_resp = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": _SORA_PROMPT_SYSTEM},
+            {"role": "user",   "content": user_context},
+        ],
+        max_tokens=300,
+        temperature=0.6,
+    )
+    sora_prompt = prompt_resp.choices[0].message.content.strip()
+    logger.info("[Sora] Prompt: %.120s…", sora_prompt)
+
+    # Create video generation job
+    generation = client.video.generations.create(
+        model="sora",
+        prompt=sora_prompt,
+        size="1280x720",
+        n=1,
+    )
+    gen_id = generation.id
+    logger.info("[Sora] Job created: id=%s status=%s", gen_id, generation.status)
+
+    # Poll until completed / failed / timed out
+    deadline = _time.monotonic() + 150
+    while generation.status not in ("completed", "failed", "cancelled"):
+        if _time.monotonic() > deadline:
+            logger.warning("[Sora] Timed out waiting for job %s", gen_id)
+            return None
+        _time.sleep(6)
+        generation = client.video.generations.retrieve(gen_id)
+        logger.info("[Sora] Polling id=%s status=%s", gen_id, generation.status)
+
+    if generation.status != "completed":
+        logger.warning("[Sora] Job %s finished with status: %s", gen_id, generation.status)
+        return None
+
+    # Download MP4 content
+    content_resp = client.video.generations.content.retrieve(gen_id)
+    video_bytes = content_resp.content  # raw bytes
+    logger.info("[Sora] Downloaded %d bytes for job %s", len(video_bytes), gen_id)
+    return base64.b64encode(video_bytes).decode("utf-8")
+
+
+def _generate_html_animation(client, user_context: str) -> str:
+    """Fallback: GPT-4o generates a self-contained canvas HTML animation."""
+    html_resp = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": _VIDEO_LESSON_HTML_SYSTEM},
+            {"role": "user",   "content": user_context},
+        ],
+        max_tokens=8000,
+        temperature=0.4,
+    )
+    animation_html = html_resp.choices[0].message.content.strip()
+    # Strip markdown fences if GPT wraps in ```html ... ```
+    if animation_html.startswith("```"):
+        lines = animation_html.split("\n")
+        animation_html = "\n".join(
+            lines[1:-1] if lines[-1].strip() == "```" else lines[1:]
+        )
+    return animation_html
+
+
 def generate_video_lesson(
     topic: str,
     page_context: str = "",
     question_text: Optional[str] = None,
 ) -> Optional["LLMVideoLesson"]:
     """
-    Generate an animated video lesson with TTS narration + 2 quiz questions.
+    Generate a video lesson with TTS narration + 2 quiz questions.
 
-    Makes 3 sequential API calls:
-      1. GPT-4o (plain text): full self-contained HTML animation
-      2. GPT-4o (json_object): narration script + quiz questions
-      3. OpenAI TTS-1-HD: converts narration to MP3 (base64)
+    Tries Sora first (actual video), falls back to GPT-4o HTML animation silently.
+    Always generates TTS narration and quiz questions.
 
-    Returns None on any failure — caller should raise HTTP 503.
+    Returns None on any unrecoverable failure — caller should raise HTTP 503.
     """
     import base64
+    import json as _json
 
     if not settings.OPENAI_API_KEY:
         return None
@@ -665,25 +764,28 @@ def generate_video_lesson(
     try:
         client = _openai_client()
 
-        # ── Call 1: HTML animation ────────────────────────────────────────────
-        html_resp = client.chat.completions.create(
-            model="gpt-4o",   # always use full gpt-4o for max quality output
-            messages=[
-                {"role": "system", "content": _VIDEO_LESSON_HTML_SYSTEM},
-                {"role": "user",   "content": user_context},
-            ],
-            max_tokens=8000,
-            temperature=0.4,
-        )
-        animation_html = html_resp.choices[0].message.content.strip()
-        # Strip markdown fences if GPT wraps in ```html ... ```
-        if animation_html.startswith("```"):
-            lines = animation_html.split("\n")
-            animation_html = "\n".join(
-                lines[1:-1] if lines[-1].strip() == "```" else lines[1:]
+        # ── Attempt 1: Sora video ─────────────────────────────────────────────
+        video_b64: str = ""
+        video_type: str = "html_animation"
+        animation_html: str = ""
+
+        try:
+            video_b64 = _try_sora_video(client, user_context) or ""
+            if video_b64:
+                video_type = "sora_mp4"
+                logger.info("[LLM] Sora video generated (%d b64 chars)", len(video_b64))
+        except Exception as sora_exc:
+            logger.info(
+                "[Sora] Not available (%s: %s) — falling back to HTML animation",
+                type(sora_exc).__name__, sora_exc,
             )
 
-        # ── Call 2: Narration + quiz (JSON) ───────────────────────────────────
+        # ── Fallback: GPT-4o HTML animation ──────────────────────────────────
+        if not video_b64:
+            animation_html = _generate_html_animation(client, user_context)
+            logger.info("[LLM] HTML animation generated (%d chars)", len(animation_html))
+
+        # ── Narration + quiz (JSON) ────────────────────────────────────────────
         nq_resp = client.chat.completions.create(
             model=settings.OPENAI_MODEL,
             messages=[
@@ -694,14 +796,13 @@ def generate_video_lesson(
             max_tokens=600,
             temperature=0.4,
         )
-        import json as _json
         nq_raw = _json.loads(nq_resp.choices[0].message.content)
         detected_topic = nq_raw.get("topic", topic)
         narration_text = nq_raw.get("narration", "")
         raw_quiz = nq_raw.get("quiz", [])
         quiz = [LLMLessonQuiz.model_validate(q) for q in raw_quiz[:2]]
 
-        # ── Call 3: TTS narration ─────────────────────────────────────────────
+        # ── TTS narration ─────────────────────────────────────────────────────
         tts_resp = client.audio.speech.create(
             model="tts-1-hd",
             voice="nova",
@@ -710,8 +811,8 @@ def generate_video_lesson(
         audio_b64 = base64.b64encode(tts_resp.read()).decode("utf-8")
 
         logger.info(
-            "[LLM] Video lesson generated: topic=%r html_len=%d quiz=%d",
-            detected_topic, len(animation_html), len(quiz),
+            "[LLM] Lesson generated: topic=%r type=%s quiz=%d",
+            detected_topic, video_type, len(quiz),
         )
         return LLMVideoLesson(
             topic=detected_topic,
@@ -719,6 +820,8 @@ def generate_video_lesson(
             narration=narration_text,
             audio_b64=audio_b64,
             quiz=quiz,
+            video_b64=video_b64,
+            video_type=video_type,
         )
 
     except ValidationError as exc:

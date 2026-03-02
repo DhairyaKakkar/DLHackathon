@@ -462,9 +462,11 @@ class ExtensionLearnRequest(BaseModel):
 
 class ExtensionLearnOut(BaseModel):
     topic: str
-    html: str           # complete self-contained HTML animation (for iframe srcdoc)
-    audio_b64: str      # OpenAI TTS MP3, base64-encoded
+    html: str = ""          # self-contained HTML animation (empty when Sora is used)
+    audio_b64: str          # OpenAI TTS MP3, base64-encoded
     quiz_questions: list[QuestionOut]
+    video_b64: str = ""     # Sora-generated MP4, base64-encoded (empty if HTML fallback)
+    video_type: str = "html_animation"  # "sora_mp4" | "html_animation"
 
 
 @router.post("/learn", response_model=ExtensionLearnOut)
@@ -548,6 +550,8 @@ def get_lesson(
         html=lesson.html,
         audio_b64=lesson.audio_b64,
         quiz_questions=[QuestionOut.model_validate(q) for q in saved_questions],
+        video_b64=lesson.video_b64,
+        video_type=lesson.video_type,
     )
 
 

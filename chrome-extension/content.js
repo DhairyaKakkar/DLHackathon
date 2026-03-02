@@ -1043,11 +1043,11 @@
         </div>
         <button class="close-btn" title="Close">✕</button>
       </div>
-      <div class="spinner"><div class="spin"></div> Generating animated video lesson…</div>
+      <div class="spinner"><div class="spin"></div> Generating Sora video lesson… (60–90s)</div>
     `);
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 90000);
+    const timer = setTimeout(() => controller.abort(), 180000); // 3 min for Sora generation
 
     try {
       const res = await fetch(`${settings.backendUrl}/api/v1/extension/learn`, {
@@ -1071,7 +1071,7 @@
     } catch (err) {
       clearTimeout(timer);
       showError(err.name === "AbortError"
-        ? "Lesson generation timed out (60s). Check backend."
+        ? "Lesson generation timed out (3 min). Check backend."
         : `Could not generate lesson: ${err.message}`);
     }
   }
@@ -1089,11 +1089,8 @@
     }));
     panel.classList.add("lesson-mode");
 
-    // Build iframe with the GPT-generated animation HTML
-    const iframe = document.createElement("iframe");
-    iframe.setAttribute("sandbox", "allow-scripts");
-    iframe.style.cssText = "width:444px;height:300px;border:none;border-radius:10px;display:block;margin:0 auto;";
-    iframe.srcdoc = lessonData.html;
+    const isSoraMp4 = lessonData.video_type === "sora_mp4" && lessonData.video_b64;
+    const videoLabel = isSoraMp4 ? "Sora AI video · with narration" : "AI-generated animation · with narration";
 
     // TTS narration audio
     if (_activeAudio) { _activeAudio.pause(); _activeAudio = null; }
@@ -1102,14 +1099,11 @@
       _activeAudio.volume = 0.9;
     }
 
-    // Store html for fullscreen
-    const _lessonHtml = lessonData.html;
-
     renderPanel(`
       <div class="panel-header">
         <div>
           <div class="title">📚 ${escHtml(lessonData.topic)}</div>
-          <div class="meta" style="opacity:.7">AI-generated video · with narration</div>
+          <div class="meta" style="opacity:.7">${videoLabel}</div>
         </div>
         <button class="close-btn" title="Close">✕</button>
       </div>
@@ -1123,9 +1117,42 @@
       </div>
     `);
 
-    panel.querySelector("#eale-video-wrap").appendChild(iframe);
+    const wrap = panel.querySelector("#eale-video-wrap");
 
-    // Start audio slightly after iframe loads
+    if (isSoraMp4) {
+      // ── Sora MP4: native <video> element ─────────────────────────────────
+      const videoEl = document.createElement("video");
+      videoEl.autoplay = true;
+      videoEl.loop = true;
+      videoEl.controls = true;
+      videoEl.style.cssText = "width:100%;max-width:444px;border-radius:10px;display:block;margin:0 auto;background:#000;";
+      videoEl.src = `data:video/mp4;base64,${lessonData.video_b64}`;
+      wrap.appendChild(videoEl);
+
+      // Fullscreen — use native video fullscreen API
+      panel.querySelector("#eale-fullscreen-btn")?.addEventListener("click", () => {
+        if (videoEl.requestFullscreen) videoEl.requestFullscreen();
+        else if (videoEl.webkitRequestFullscreen) videoEl.webkitRequestFullscreen();
+      });
+    } else {
+      // ── HTML animation: sandboxed iframe ──────────────────────────────────
+      const iframe = document.createElement("iframe");
+      iframe.setAttribute("sandbox", "allow-scripts");
+      iframe.style.cssText = "width:444px;height:300px;border:none;border-radius:10px;display:block;margin:0 auto;";
+      iframe.srcdoc = lessonData.html;
+      wrap.appendChild(iframe);
+
+      const _lessonHtml = lessonData.html;
+      // Fullscreen — open HTML blob in new tab
+      panel.querySelector("#eale-fullscreen-btn")?.addEventListener("click", () => {
+        const blob = new Blob([_lessonHtml], { type: "text/html" });
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank");
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+      });
+    }
+
+    // Start TTS audio slightly after content loads
     setTimeout(() => _activeAudio?.play().catch(() => {}), 900);
 
     // Audio toggle
@@ -1139,15 +1166,6 @@
         _activeAudio.pause();
         audioBtnEl.textContent = "🔇 Paused";
       }
-    });
-
-    // Fullscreen — open in new tab
-    panel.querySelector("#eale-fullscreen-btn")?.addEventListener("click", () => {
-      const blob = new Blob([_lessonHtml], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank");
-      // Revoke after a short delay (tab has had time to load it)
-      setTimeout(() => URL.revokeObjectURL(url), 10000);
     });
 
     // Quiz button
