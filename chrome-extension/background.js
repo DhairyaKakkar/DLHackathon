@@ -19,6 +19,8 @@ const DEFAULT_SETTINGS = {
     "canvas.instructure.com",
     "moodle.org",
     "notion.site",
+    "khanacademy.org",
+    "youtube.com",
   ],
 };
 
@@ -79,5 +81,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         .catch((err) => sendResponse({ ok: false, error: String(err) }));
     });
     return true; // keep channel open for async sendResponse
+  }
+
+  if (msg.type === "EALE_CAPTURE_SCREENSHOT") {
+    chrome.tabs.captureVisibleTab(null, { format: "png" }, (dataUrl) => {
+      if (chrome.runtime.lastError || !dataUrl) {
+        sendResponse({ ok: false });
+      } else {
+        sendResponse({ ok: true, dataUrl });
+      }
+    });
+    return true; // async
   }
 });

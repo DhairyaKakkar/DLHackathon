@@ -65,6 +65,8 @@ class ExtensionContextRequest(BaseModel):
     page_url: str = ""
     page_title: str = ""
     page_text: str = ""       # first ~2 000 chars of visible page text
+    page_screenshot: Optional[str] = None  # base64 PNG, no data-URL prefix
+    context_hint: Optional[str] = None    # "REWIND" | "MANUAL_PAUSE" | "DIFFICULTY" | "ATTENTION_RETURN"
 
 
 class ExtensionContextOut(BaseModel):
@@ -73,7 +75,8 @@ class ExtensionContextOut(BaseModel):
     topic_name: str
     question: QuestionOut
     rationale: str
-    mode: str                 # "DUE_TASK" | "LLM" | "KEYWORD" | "RANDOM"
+    mode: str                           # "DUE_TASK" | "LLM" | "KEYWORD" | "RANDOM"
+    context_hint: Optional[str] = None  # echoed back so the quiz panel can show the trigger reason
 
 
 class ExtensionSubmitRequest(BaseModel):
@@ -82,6 +85,7 @@ class ExtensionSubmitRequest(BaseModel):
     answer: str
     confidence: int           # 1–10
     reasoning: Optional[str] = None
+    handwritten_image: Optional[str] = None  # base64 image for vision grading
 
 
 class ExtensionSubmitOut(BaseModel):
@@ -184,11 +188,16 @@ def get_extension_context(
             record_llm_call,
         )
 
-        if not is_rate_limited(student.id):
+        # Bypass rate limit for video-triggered contexts — student is actively
+        # watching and deserves a fresh question, not a stale due-task fallback
+        video_trigger = payload.context_hint is not None
+        if video_trigger or not is_rate_limited(student.id):
             llm_result = infer_topic_and_generate_question(
                 url=payload.page_url,
                 title=payload.page_title,
                 text_snippet=payload.page_text,
+                screenshot_b64=payload.page_screenshot,
+                context_hint=payload.context_hint,
             )
 
             if llm_result:
@@ -237,6 +246,7 @@ def get_extension_context(
                     question=QuestionOut.model_validate(question),
                     rationale=llm_result.rationale,
                     mode="LLM",
+                    context_hint=payload.context_hint,
                 )
         # Rate-limited or LLM failed — fall through to due tasks / keyword / random
 
@@ -266,6 +276,7 @@ def get_extension_context(
                 f"(was due {due_task.due_at.strftime('%b %d')})."
             ),
             mode="DUE_TASK",
+            context_hint=payload.context_hint,
         )
 
     # ── 3: Keyword-inferred topic ─────────────────────────────────────────────
@@ -284,6 +295,7 @@ def get_extension_context(
                     "Testing your durable understanding now."
                 ),
                 mode="KEYWORD",
+                context_hint=payload.context_hint,
             )
 
     # ── 4: Random fallback ────────────────────────────────────────────────────
@@ -299,6 +311,7 @@ def get_extension_context(
         question=QuestionOut.model_validate(q),
         rationale="No specific topic detected — serving a random knowledge check.",
         mode="RANDOM",
+        context_hint=payload.context_hint,
     )
 
 
@@ -322,13 +335,40 @@ def submit_extension_attempt(
     llm_feedback: Optional[str] = None
     is_correct: bool
 
-    use_llm_grading = (
-        settings.USE_LLM_GRADING
+    # Handwritten answer: vision-grade first if image provided
+    if (
+        payload.handwritten_image
+        and settings.USE_LLM_GRADING
         and settings.OPENAI_API_KEY
-        and question.question_type == QuestionType.SHORT_TEXT
-    )
+    ):
+        from app.services.llm_service import grade_handwritten_answer
+        rubric = question.options if question.variant_template == "LLM_CONTEXT" else []
+        grading = grade_handwritten_answer(
+            question_text=question.text,
+            correct_answer=question.correct_answer,
+            rubric=rubric or [],
+            image_b64=payload.handwritten_image,
+        )
+        if grading is not None:
+            is_correct = grading.score_0_1 >= 0.7
+            llm_feedback = grading.feedback
+            # Skip remaining grading paths — go straight to persist
+            goto_persist = True
+        else:
+            goto_persist = False
+    else:
+        goto_persist = False
 
-    if use_llm_grading:
+    if not goto_persist:
+        use_llm_grading = (
+            settings.USE_LLM_GRADING
+            and settings.OPENAI_API_KEY
+            and question.question_type == QuestionType.SHORT_TEXT
+        )
+    else:
+        use_llm_grading = False
+
+    if not goto_persist and use_llm_grading:
         from app.services.llm_service import grade_short_answer
 
         # For LLM-generated questions options holds the rubric; otherwise empty
@@ -347,7 +387,7 @@ def submit_extension_attempt(
         else:
             # LLM grading failed — fall back
             is_correct = _check_correctness_deterministic(question, payload.answer)
-    else:
+    elif not goto_persist:
         is_correct = _check_correctness_deterministic(question, payload.answer)
 
     # ── Persist attempt ───────────────────────────────────────────────────────
@@ -415,3 +455,42 @@ def submit_extension_attempt(
         explanation=explanation,
         updated_dus=updated_dus,
     )
+
+
+# ─── Video difficulty assessment ──────────────────────────────────────────────
+
+class VideoAssessRequest(BaseModel):
+    frame_b64: str
+    caption_text: str = ""
+
+
+class VideoAssessOut(BaseModel):
+    difficulty_score: int   # 1–5
+    should_quiz: bool       # true when score >= 4
+
+
+@router.post("/assess-video", response_model=VideoAssessOut)
+def assess_video(
+    payload: VideoAssessRequest,
+    x_api_key: str = Header(..., description="Student API key"),
+    db: Session = Depends(get_db),
+):
+    """
+    Silently assess how conceptually dense the current video frame is.
+    Returns should_quiz=True when score >= 4 (challenging content detected).
+    Falls back to should_quiz=False when LLM is disabled or fails — never interrupts video.
+    """
+    _get_student(x_api_key, db)  # auth check only
+
+    if not (settings.USE_LLM_CONTEXT and settings.OPENAI_API_KEY):
+        return VideoAssessOut(difficulty_score=0, should_quiz=False)
+
+    from app.services.llm_service import assess_video_difficulty
+    score = assess_video_difficulty(
+        frame_b64=payload.frame_b64,
+        caption_text=payload.caption_text,
+    )
+    if score is None:
+        return VideoAssessOut(difficulty_score=0, should_quiz=False)
+
+    return VideoAssessOut(difficulty_score=score, should_quiz=score >= 4)

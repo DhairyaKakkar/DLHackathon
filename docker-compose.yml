@@ -32,7 +32,7 @@ services:
       USE_LLM_CONTEXT: "true"
       USE_LLM_GRADING: "true"
       OPENAI_API_KEY: ""
-      OPENAI_MODEL: "gpt-4.1"
+      OPENAI_MODEL: "gpt-4o"
       LLM_CACHE_TTL_SECONDS: "${LLM_CACHE_TTL_SECONDS:-600}"
       CORS_ORIGINS: "*"
       SCHEDULER_INTERVAL_SECONDS: "60"
@@ -42,6 +42,14 @@ services:
     volumes:
       - ./backend:/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  compvis:
+    build:
+      context: ./CompVis
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
 
   frontend:
     image: node:18-alpine

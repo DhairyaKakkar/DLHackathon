@@ -65,6 +65,16 @@ class LLMGrading(BaseModel):
         return max(0.0, min(1.0, float(v)))
 
 
+class LLMDifficultyAssessment(BaseModel):
+    difficulty_score: int
+    reasoning: str
+
+    @field_validator("difficulty_score")
+    @classmethod
+    def clamp_difficulty(cls, v: int) -> int:
+        return max(1, min(5, v))
+
+
 # ─── In-memory TTL cache (question generation only) ───────────────────────────
 # Maps cache_key -> (expiry_unix_ts, LLMQuestion)
 _question_cache: dict[str, tuple[float, LLMQuestion]] = {}
@@ -122,6 +132,31 @@ Rules:
 - topic_name must be a recognisable academic subject.
 """
 
+_DIFFICULTY_SYSTEM = """\
+You are analyzing a video lecture frame to assess how conceptually challenging the content is.
+Examine any text, equations, diagrams, code, graphs, or visual content in the frame.
+
+Return ONLY a valid JSON object:
+{
+  "difficulty_score": <integer 1-5>,
+  "reasoning": "<one sentence>"
+}
+
+Score guide:
+1 = Very easy / introductory / review
+2 = Beginner-level, familiar concepts
+3 = Moderate — some new ideas
+4 = Challenging — dense notation, abstract concepts, multiple interconnected ideas
+5 = Very difficult — complex derivations, heavy math, advanced theory
+"""
+
+_CONTEXT_HINT_MESSAGES: dict[str, str] = {
+    "REWIND":           "The student just rewound the video — they likely missed or misunderstood something. Focus the question on the specific concept visible in the frame.",
+    "MANUAL_PAUSE":     "The student paused the video, possibly to reflect. Ask a question that checks understanding of what was just explained.",
+    "DIFFICULTY":       "This is a conceptually dense moment in the video. Ask a question that tests deep understanding of this specific concept.",
+    "ATTENTION_RETURN": "The student was distracted and just returned. Quiz them on key concepts from this point in the video.",
+}
+
 _GRADING_SYSTEM = """\
 You are a strict academic grader. Evaluate the student's answer against the question and rubric.
 Apply rubric criteria literally — do not invent credit not clearly earned.
@@ -144,6 +179,8 @@ def infer_topic_and_generate_question(
     url: str,
     title: str,
     text_snippet: str,
+    screenshot_b64: Optional[str] = None,
+    context_hint: Optional[str] = None,
 ) -> Optional[LLMQuestion]:
     """
     Call OpenAI to infer topic and produce a transfer-style question.
@@ -163,12 +200,27 @@ def infer_topic_and_generate_question(
             return cached
         del _question_cache[key]
 
-    user_msg = (
+    hint_line = ""
+    if context_hint and context_hint in _CONTEXT_HINT_MESSAGES:
+        hint_line = f"\n\nContext: {_CONTEXT_HINT_MESSAGES[context_hint]}"
+
+    user_text = (
         f"Page URL: {url}\n"
         f"Page title: {title}\n\n"
         f"Content excerpt:\n{snippet}\n\n"
-        "Generate a transfer-style question for this content."
+        f"Generate a transfer-style question for this content.{hint_line}"
     )
+
+    if screenshot_b64:
+        user_content = [
+            {"type": "text", "text": user_text},
+            {"type": "image_url", "image_url": {
+                "url": f"data:image/png;base64,{screenshot_b64}",
+                "detail": "low",
+            }},
+        ]
+    else:
+        user_content = user_text  # string — unchanged path
 
     try:
         client = _openai_client()
@@ -176,7 +228,7 @@ def infer_topic_and_generate_question(
             model=settings.OPENAI_MODEL,
             messages=[
                 {"role": "system", "content": _QUESTION_SYSTEM},
-                {"role": "user",   "content": user_msg},
+                {"role": "user",   "content": user_content},
             ],
             response_format={"type": "json_object"},
             max_tokens=512,
@@ -251,4 +303,116 @@ def grade_short_answer(
         return None
     except Exception as exc:
         logger.warning("[LLM] Grading failed (%s): %s", type(exc).__name__, exc)
+        return None
+
+
+def grade_handwritten_answer(
+    question_text: str,
+    correct_answer: str,
+    rubric: list[str],
+    image_b64: str,
+) -> Optional[LLMGrading]:
+    """
+    Use GPT-4 Vision to OCR and grade a handwritten answer in one call.
+    Returns None on any failure — caller falls back to deterministic logic.
+    """
+    if not settings.OPENAI_API_KEY:
+        return None
+
+    rubric_lines = "\n".join(f"- {r}" for r in rubric) if rubric else f"- {correct_answer}"
+
+    user_content = [
+        {"type": "text", "text": (
+            f"Question: {question_text}\n\n"
+            f"Rubric / key criteria:\n{rubric_lines}\n\n"
+            f"Correct answer: {correct_answer}\n\n"
+            "The student submitted a handwritten answer (see image). "
+            "Read the handwriting carefully and grade it against the rubric."
+        )},
+        {"type": "image_url", "image_url": {
+            "url": f"data:image/jpeg;base64,{image_b64}",
+            "detail": "high",
+        }},
+    ]
+
+    try:
+        client = _openai_client()
+        resp = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": _GRADING_SYSTEM},
+                {"role": "user",   "content": user_content},
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=256,
+            temperature=0.1,
+        )
+        raw = resp.choices[0].message.content
+        result = LLMGrading.model_validate_json(raw)
+
+        logger.info(
+            "[LLM] Handwriting graded: correct=%s score=%.2f",
+            result.correct, result.score_0_1,
+        )
+        return result
+
+    except ValidationError as exc:
+        logger.warning("[LLM] Handwriting grading schema invalid: %s", exc)
+        return None
+    except Exception as exc:
+        logger.warning("[LLM] Handwriting grading failed: %s", exc)
+        return None
+
+
+def assess_video_difficulty(
+    frame_b64: str,
+    caption_text: str = "",
+) -> Optional[int]:
+    """
+    Assess how conceptually dense a video frame is. Returns 1–5 score, or None on failure.
+    Called every 3 min passively; only triggers a quiz when score >= 4.
+    """
+    if not settings.OPENAI_API_KEY:
+        return None
+
+    user_content: list = [
+        {"type": "image_url", "image_url": {
+            "url": f"data:image/jpeg;base64,{frame_b64}",
+            "detail": "low",   # fast + cheap — we just need overall density
+        }},
+    ]
+    if caption_text:
+        user_content.insert(0, {
+            "type": "text",
+            "text": f"Current captions / transcript:\n{caption_text[:500]}\n\nAssess the conceptual difficulty of this video frame.",
+        })
+    else:
+        user_content.insert(0, {
+            "type": "text",
+            "text": "Assess the conceptual difficulty of this video frame.",
+        })
+
+    try:
+        client = _openai_client()
+        resp = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": _DIFFICULTY_SYSTEM},
+                {"role": "user",   "content": user_content},
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=128,
+            temperature=0.1,
+        )
+        raw = resp.choices[0].message.content
+        result = LLMDifficultyAssessment.model_validate_json(raw)
+
+        logger.info("[LLM] Video difficulty: score=%d (%s)", result.difficulty_score, result.reasoning)
+        return result.difficulty_score
+
+    except ValidationError as exc:
+        logger.warning("[LLM] Video difficulty schema invalid: %s", exc)
+        return None
+    except Exception as exc:
+        logger.warning("[LLM] Video difficulty assessment failed: %s", exc)
         return None

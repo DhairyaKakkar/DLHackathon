@@ -20,6 +20,21 @@
   let state = "idle";
   let settings = {};
   let currentContext = null; // ExtensionContextOut from backend
+  let _handwrittenB64 = null; // base64 image from handwriting upload
+
+  // ── Attention monitoring state ─────────────────────────────────────────────
+  let _attentionStream = null, _attentionVideo = null;
+  let _attentionTimer = null, _faceAbsentSince = null;
+  const CV_URL = "http://localhost:8001";
+  const ABSENT_QUIZ_MS = 20000;
+
+  // ── Video quiz state ───────────────────────────────────────────────────────
+  let _activeVideo = null;         // video element currently being quizzed on
+  let _ealePausingVideo = false;   // true while EALE itself triggers .pause()
+  let _videoDifficultyTimer = null;
+  let _videoPrevTime = 0;
+  const VIDEO_DIFFICULTY_INTERVAL_MS = 3 * 60 * 1000; // 3 min passive scan
+  const VIDEO_REWIND_THRESHOLD_S = 5;                  // >5s backward = rewind
 
   // ── Create Shadow DOM host ─────────────────────────────────────────────────
   const host = document.createElement("div");
@@ -204,6 +219,32 @@
     .mode-badge.random   { background: #e5e7eb; color: #4b5563; }
 
     .rationale { font-size: 11px; color: #6b7280; font-style: italic; }
+
+    /* Handwriting upload */
+    .upload-btn {
+      display: inline-block; padding: 7px 12px; border: 1.5px solid #4f46e5;
+      border-radius: 8px; font-size: 12px; font-weight: 600; color: #4f46e5;
+      cursor: pointer; text-align: center; transition: background .12s;
+    }
+    .upload-btn:hover { background: #eef2ff; }
+    .remove-img-btn { display: block; }
+
+    /* Video quiz mode badge */
+    .video-hint {
+      font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 12px;
+      background: #fce7f3; color: #9d174d;
+      text-transform: uppercase; letter-spacing: .04em;
+    }
+
+    /* Attention button states */
+    #eale-btn.attention-absent {
+      background: #dc2626;
+      box-shadow: 0 4px 14px rgba(220,38,38,.5);
+      animation: pulse-red 1s infinite;
+    }
+    @keyframes pulse-red {
+      0%,100% { opacity:1; } 50% { opacity:.7; }
+    }
   `;
   shadow.appendChild(styleEl);
 
@@ -211,6 +252,13 @@
   const container = document.createElement("div");
   container.style.cssText = "display:flex;flex-direction:column;align-items:flex-end;gap:10px;";
   shadow.appendChild(container);
+
+  // Stop ALL keyboard events from leaking out of the shadow DOM to the host
+  // page — prevents YouTube/video player shortcuts (space, m, k, arrows, etc.)
+  // firing while the student is typing or interacting with the quiz panel
+  shadow.addEventListener("keydown",  (e) => e.stopPropagation(), true);
+  shadow.addEventListener("keyup",    (e) => e.stopPropagation(), true);
+  shadow.addEventListener("keypress", (e) => e.stopPropagation(), true);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -262,6 +310,11 @@
     panel.innerHTML = "";
     state = "idle";
     currentContext = null;
+    // Resume video if EALE paused it for a quiz
+    if (_activeVideo && !_activeVideo.ended) {
+      _activeVideo.play().catch(() => {});
+    }
+    _activeVideo = null;
   }
 
   const MODE_META = {
@@ -271,12 +324,22 @@
     RANDOM:   { cls: "random",   label: "Random" },
   };
 
-  function header(topicName, taskType, mode) {
+  const VIDEO_HINT_LABEL = {
+    REWIND:           "⏪ Rewound",
+    MANUAL_PAUSE:     "⏸ Paused",
+    DIFFICULTY:       "🧠 Dense Concept",
+    ATTENTION_RETURN: "👀 Welcome Back",
+  };
+
+  function header(topicName, taskType, mode, contextHint) {
     const badgeClass = taskType
       ? (taskType.toLowerCase() === "retest" ? "retest" : "transfer")
       : "new";
     const badgeLabel = taskType || "New";
     const modeMeta = MODE_META[mode] || MODE_META.RANDOM;
+    const videoHint = contextHint && VIDEO_HINT_LABEL[contextHint]
+      ? `<span class="video-hint">${VIDEO_HINT_LABEL[contextHint]}</span>`
+      : "";
     return `
       <div class="panel-header">
         <div>
@@ -284,6 +347,7 @@
           <div class="meta">${topicName}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;">
+          ${videoHint}
           <span class="mode-badge ${modeMeta.cls}">${modeMeta.label}</span>
           <span class="task-badge ${badgeClass}">${badgeLabel}</span>
           <button class="close-btn" title="Close">✕</button>
@@ -341,9 +405,25 @@
   function showQuiz(ctx) {
     state = "quiz";
     currentContext = ctx;
+    _handwrittenB64 = null; // reset on each new quiz
     const q = ctx.question;
     const isMcq = q.question_type === "MCQ";
     const mode = ctx.mode || "RANDOM";
+
+    const handwritingHtml = !isMcq ? `
+      <div style="text-align:center;font-size:11px;color:#9ca3af;margin:2px 0">— or —</div>
+      <label class="upload-btn" for="eale-file-input" id="eale-upload-label">
+        📷 Upload handwritten answer
+      </label>
+      <input type="file" id="eale-file-input" accept="image/*" style="display:none" />
+      <div id="eale-img-preview" style="display:none;margin-top:6px;">
+        <img id="eale-preview-img" style="max-width:100%;border-radius:6px;" />
+        <button class="remove-img-btn" id="eale-remove-img"
+                style="font-size:11px;color:#ef4444;background:none;border:none;cursor:pointer;margin-top:4px;">
+          ✕ Remove image
+        </button>
+      </div>
+    ` : "";
 
     const optionsHtml = isMcq
       ? `<div class="options-list" id="eale-options">
@@ -354,10 +434,11 @@
             </label>
           `).join("")}
         </div>`
-      : `<input class="text-input" id="eale-text-ans" type="text" placeholder="Type your answer…" autocomplete="off" />`;
+      : `<input class="text-input" id="eale-text-ans" type="text" placeholder="Type your answer…" autocomplete="off" />
+         ${handwritingHtml}`;
 
     renderPanel(`
-      ${header(ctx.topic_name, ctx.task_type, mode)}
+      ${header(ctx.topic_name, ctx.task_type, mode, ctx.context_hint)}
       <div class="panel-body">
         <p class="rationale">${escHtml(ctx.rationale)}</p>
         <p class="question-text">${escHtml(q.text)}</p>
@@ -409,6 +490,32 @@
       if (area.classList.contains("open")) area.focus();
     });
 
+    // Handwriting upload
+    panel.querySelector("#eale-file-input")?.addEventListener("change", (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const dataUrl = ev.target.result;
+        _handwrittenB64 = dataUrl.replace(/^data:[^;]+;base64,/, "");
+        const preview = panel.querySelector("#eale-img-preview");
+        const img = panel.querySelector("#eale-preview-img");
+        if (preview && img) { img.src = dataUrl; preview.style.display = "block"; }
+        // Clear text input when image is used
+        const textInput = panel.querySelector("#eale-text-ans");
+        if (textInput) textInput.value = "";
+      };
+      reader.readAsDataURL(file);
+    });
+
+    panel.querySelector("#eale-remove-img")?.addEventListener("click", () => {
+      _handwrittenB64 = null;
+      const preview = panel.querySelector("#eale-img-preview");
+      const fileInput = panel.querySelector("#eale-file-input");
+      if (preview) preview.style.display = "none";
+      if (fileInput) fileInput.value = "";
+    });
+
     // Submit
     panel.querySelector("#eale-submit")?.addEventListener("click", handleSubmit);
   }
@@ -420,7 +527,7 @@
       ? `<p style="font-size:11px;color:#6b7280;margin-top:8px;">Updated DUS: <strong style="color:#4f46e5">${data.updated_dus}</strong>/100</p>`
       : "";
     renderPanel(`
-      ${header(currentContext?.topic_name || "Result", null, currentContext?.mode)}
+      ${header(currentContext?.topic_name || "Result", null, currentContext?.mode, currentContext?.context_hint)}
       <div class="panel-body">
         <div class="result-block">
           <div class="result-badge ${isCorrect ? "correct" : "incorrect"}">
@@ -451,7 +558,7 @@
       answer = checked.value;
     } else {
       answer = (panel.querySelector("#eale-text-ans")?.value || "").trim();
-      if (!answer) { alert("Please type an answer."); return; }
+      if (!answer && !_handwrittenB64) { alert("Please type an answer or upload a handwritten one."); return; }
     }
 
     const confidence = parseInt(panel.querySelector("#eale-conf")?.value || "5", 10);
@@ -475,9 +582,10 @@
         body: JSON.stringify({
           question_id: q.id,
           task_id: currentContext.task_id,
-          answer,
+          answer: _handwrittenB64 ? "[handwritten]" : answer,
           confidence,
           reasoning,
+          handwritten_image: _handwrittenB64 ?? null,
         }),
         signal: controller.signal,
       });
@@ -500,9 +608,276 @@
     }
   }
 
+  // ── Screenshot capture ─────────────────────────────────────────────────────
+
+  async function captureScreenshot() {
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage({ type: "EALE_CAPTURE_SCREENSHOT" }, (resp) => {
+        resolve(resp?.ok ? resp.dataUrl.replace(/^data:image\/[a-z]+;base64,/, "") : null);
+      });
+    });
+  }
+
+  // ── Video helpers ──────────────────────────────────────────────────────────
+
+  function detectVideo() {
+    // Find a playing video first; fall back to any video present
+    const all = Array.from(document.querySelectorAll("video"));
+    return all.find((v) => !v.paused && !v.ended)
+        || all.find((v) => v.readyState >= 2)
+        || null;
+  }
+
+  function getVideoFrame(video) {
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width  = video.videoWidth  || 640;
+      canvas.height = video.videoHeight || 360;
+      canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL("image/jpeg", 0.75).replace(/^data:[^;]+;base64,/, "");
+    } catch (e) {
+      return null; // cross-origin or tainted canvas — fall back gracefully
+    }
+  }
+
+  function getVideoCaptions() {
+    // YouTube live captions
+    const ytCaps = Array.from(document.querySelectorAll(".ytp-caption-segment"))
+      .map((el) => el.textContent).join(" ").trim();
+    if (ytCaps) return ytCaps;
+
+    // Generic WebVTT text tracks
+    const video = detectVideo();
+    if (video) {
+      for (const track of Array.from(video.textTracks || [])) {
+        if (track.mode === "showing" && track.activeCues?.length) {
+          return Array.from(track.activeCues).map((c) => c.text).join(" ").trim();
+        }
+      }
+    }
+    return "";
+  }
+
+  // ── Attention monitoring (YOLOv8 via CompVis) ──────────────────────────────
+
+  async function startAttentionMonitoring() {
+    if (_attentionStream) return; // already running
+    try {
+      _attentionStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+    } catch (e) {
+      console.warn("[EALE] Webcam access denied:", e);
+      return;
+    }
+
+    // Hidden video element
+    _attentionVideo = document.createElement("video");
+    _attentionVideo.srcObject = _attentionStream;
+    _attentionVideo.autoplay = true;
+    _attentionVideo.playsInline = true;
+    _attentionVideo.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;top:-9999px;left:-9999px;";
+    document.documentElement.appendChild(_attentionVideo);
+
+    // Switch CompVis to yolov8n once
+    fetch(`${CV_URL}/switch-model`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model_name: "yolov8n" }),
+    }).catch(() => {});
+
+    const canvas = document.createElement("canvas");
+    const ctx2d = canvas.getContext("2d");
+
+    _attentionTimer = setInterval(async () => {
+      if (!_attentionVideo || _attentionVideo.readyState < 2) return;
+
+      canvas.width  = _attentionVideo.videoWidth  || 320;
+      canvas.height = _attentionVideo.videoHeight || 240;
+      ctx2d.drawImage(_attentionVideo, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+        const form = new FormData();
+        form.append("file", blob, "frame.jpg");
+        try {
+          const res = await fetch(`${CV_URL}/predict`, { method: "POST", body: form });
+          if (!res.ok) return;
+          const data = await res.json();
+          const personVisible = Array.isArray(data.boxes) &&
+            data.boxes.some((b) => b.class_name === "person");
+
+          if (personVisible) {
+            // Face present
+            if (_faceAbsentSince !== null) {
+              _faceAbsentSince = null;
+              btn.classList.remove("attention-absent");
+              // Only quiz on return if a video was playing — looking away
+              // during note-taking or reading is normal and should not interrupt
+              if (state === "idle" && settings.videoQuizEnabled) {
+                const vid = detectVideo();
+                if (vid && !vid.paused) triggerVideoQuiz(vid, "ATTENTION_RETURN");
+              }
+            }
+          } else {
+            // Face absent
+            if (_faceAbsentSince === null) {
+              _faceAbsentSince = Date.now();
+            } else {
+              const absentMs = Date.now() - _faceAbsentSince;
+              const vid = detectVideo();
+              const videoPlaying = vid && !vid.paused && !vid.ended;
+
+              if (videoPlaying) {
+                // Watching a video — flash red after 20s
+                if (absentMs >= ABSENT_QUIZ_MS) btn.classList.add("attention-absent");
+              } else {
+                // Reading / taking notes — quiz directly after 60s (no question on screen)
+                if (absentMs >= 60000 && state === "idle") {
+                  _faceAbsentSince = null; // reset so it doesn't re-fire immediately
+                  triggerQuiz();
+                }
+              }
+            }
+          }
+        } catch (e) {
+          // CompVis not running — ignore silently
+        }
+      }, "image/jpeg", 0.7);
+    }, 3000);
+  }
+
+  function stopAttentionMonitoring() {
+    if (_attentionTimer) { clearInterval(_attentionTimer); _attentionTimer = null; }
+    if (_attentionStream) { _attentionStream.getTracks().forEach((t) => t.stop()); _attentionStream = null; }
+    if (_attentionVideo) { _attentionVideo.remove(); _attentionVideo = null; }
+    _faceAbsentSince = null;
+    btn.classList.remove("attention-absent");
+  }
+
+  // ── Video monitoring ───────────────────────────────────────────────────────
+
+  // Bound event handlers stored so we can removeEventListener cleanly
+  let _videoHandlers = null;
+
+  function startVideoMonitoring() {
+    if (_videoHandlers) return; // already attached
+
+    // Find or wait for a video element (covers SPAs that load video late)
+    function attachToVideo(video) {
+      if (_videoHandlers) return; // race guard
+
+      function onPause() {
+        if (_ealePausingVideo) return; // EALE itself paused — ignore
+        if (state !== "idle") return;
+        triggerVideoQuiz(video, "MANUAL_PAUSE");
+      }
+
+      function onSeeked() {
+        const now = video.currentTime;
+        if (_videoPrevTime - now > VIDEO_REWIND_THRESHOLD_S) {
+          // Rewound significantly
+          if (state === "idle") triggerVideoQuiz(video, "REWIND");
+        }
+        _videoPrevTime = now;
+      }
+
+      function onTimeUpdate() {
+        _videoPrevTime = video.currentTime;
+      }
+
+      video.addEventListener("pause",      onPause);
+      video.addEventListener("seeked",     onSeeked);
+      video.addEventListener("timeupdate", onTimeUpdate);
+
+      _videoHandlers = { video, onPause, onSeeked, onTimeUpdate };
+
+      // Passive difficulty scan every 3 min
+      _videoDifficultyTimer = setInterval(async () => {
+        if (state !== "idle" || video.paused || video.ended) return;
+        const frame = getVideoFrame(video);
+        if (!frame) return;
+        const captions = getVideoCaptions();
+        try {
+          const res = await fetch(`${settings.backendUrl}/api/v1/extension/assess-video`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-API-Key": settings.studentApiKey,
+            },
+            body: JSON.stringify({ frame_b64: frame, caption_text: captions }),
+          });
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data.should_quiz && state === "idle") {
+            triggerVideoQuiz(video, "DIFFICULTY");
+          }
+        } catch (e) {
+          // Backend not running or endpoint missing — fail silently
+        }
+      }, VIDEO_DIFFICULTY_INTERVAL_MS);
+    }
+
+    // Try immediately, then watch for dynamically loaded video (SPA)
+    const vid = detectVideo();
+    if (vid) {
+      attachToVideo(vid);
+    } else {
+      const observer = new MutationObserver(() => {
+        const v = detectVideo();
+        if (v) { observer.disconnect(); attachToVideo(v); }
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
+  }
+
+  function stopVideoMonitoring() {
+    if (_videoHandlers) {
+      const { video, onPause, onSeeked, onTimeUpdate } = _videoHandlers;
+      video.removeEventListener("pause",      onPause);
+      video.removeEventListener("seeked",     onSeeked);
+      video.removeEventListener("timeupdate", onTimeUpdate);
+      _videoHandlers = null;
+    }
+    if (_videoDifficultyTimer) { clearInterval(_videoDifficultyTimer); _videoDifficultyTimer = null; }
+    _videoPrevTime = 0;
+  }
+
+  async function triggerVideoQuiz(video, reason) {
+    if (state !== "idle") return;
+    _activeVideo = video;
+
+    // Pause the video (set flag so our own pause handler ignores this)
+    if (!video.paused) {
+      _ealePausingVideo = true;
+      video.pause();
+      _ealePausingVideo = false;
+    }
+
+    const frame    = getVideoFrame(video);
+    const captions = getVideoCaptions();
+
+    // Build context hint label shown in loading screen
+    const hintLabel = {
+      REWIND:           "You rewound — checking understanding",
+      MANUAL_PAUSE:     "You paused — quick check",
+      DIFFICULTY:       "Dense concept detected",
+      ATTENTION_RETURN: "Welcome back — what did you miss?",
+    }[reason] || "Video learning check";
+
+    await triggerQuiz({
+      // frame is null when canvas is cross-origin (YouTube, Khan Academy) —
+      // passing undefined lets triggerQuiz fall back to captureScreenshot()
+      // which captures the full visible tab including the video player
+      page_screenshot:    frame || undefined,
+      page_text_override: captions || null,
+      context_hint:       reason,
+      loading_msg:        hintLabel,
+    });
+  }
+
   // ── Trigger quiz ───────────────────────────────────────────────────────────
 
-  async function triggerQuiz() {
+  // overrides: { page_screenshot, page_text_override, context_hint, loading_msg }
+  async function triggerQuiz(overrides = {}) {
     if (state === "loading" || state === "submitting") return;
 
     if (!isAllowed(location.href)) {
@@ -515,7 +890,20 @@
       return;
     }
 
-    if (settings.useLlmContext) {
+    if (overrides.loading_msg) {
+      // Video-specific loading message
+      state = "loading";
+      renderPanel(`
+        <div class="panel-header">
+          <div>
+            <div class="title">EALE Learning Check</div>
+            <div class="meta" style="opacity:.7">${escHtml(overrides.loading_msg)}</div>
+          </div>
+          <button class="close-btn" title="Close">✕</button>
+        </div>
+        <div class="spinner"><div class="spin"></div> Generating question…</div>
+      `);
+    } else if (settings.useLlmContext) {
       showLoadingLLM();
     } else {
       showLoading();
@@ -523,6 +911,11 @@
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 45000);
+
+    // Use override screenshot (video frame) or capture tab screenshot
+    const screenshot = overrides.page_screenshot !== undefined
+      ? overrides.page_screenshot
+      : await captureScreenshot();
 
     try {
       const res = await fetch(`${settings.backendUrl}/api/v1/extension/context`, {
@@ -534,7 +927,9 @@
         body: JSON.stringify({
           page_url: location.href,
           page_title: document.title || "",
-          page_text: getPageText(),
+          page_text: overrides.page_text_override || getPageText(),
+          page_screenshot: screenshot,
+          context_hint: overrides.context_hint || null,
         }),
         signal: controller.signal,
       });
@@ -588,27 +983,41 @@
   // ── Load settings from storage ────────────────────────────────────────────
 
   chrome.storage.sync.get(
-    ["backendUrl", "studentApiKey", "studentId", "allowlist", "useLlmContext", "useLlmGrading"],
+    ["backendUrl", "studentApiKey", "studentId", "allowlist", "useLlmContext", "useLlmGrading", "attentionMonitoring", "videoQuizEnabled"],
     (data) => {
       settings = {
-        backendUrl:    data.backendUrl    || "http://localhost:8000",
-        studentApiKey: data.studentApiKey || "student-alice-key",
-        studentId:     data.studentId    || 1,
-        allowlist:     data.allowlist    || ["file://", "localhost"],
-        useLlmContext: data.useLlmContext || false,
-        useLlmGrading: data.useLlmGrading || false,
+        backendUrl:          data.backendUrl          || "http://localhost:8000",
+        studentApiKey:       data.studentApiKey       || "student-alice-key",
+        studentId:           data.studentId           || 1,
+        allowlist:           data.allowlist           || ["file://", "localhost"],
+        useLlmContext:       data.useLlmContext       || false,
+        useLlmGrading:       data.useLlmGrading       || false,
+        attentionMonitoring: data.attentionMonitoring || false,
+        videoQuizEnabled:    data.videoQuizEnabled    || false,
       };
+      if (settings.attentionMonitoring) startAttentionMonitoring();
+      if (settings.videoQuizEnabled)    startVideoMonitoring();
     }
   );
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "sync") return;
-    if (changes.backendUrl)    settings.backendUrl    = changes.backendUrl.newValue;
-    if (changes.studentApiKey) settings.studentApiKey = changes.studentApiKey.newValue;
-    if (changes.studentId)     settings.studentId     = changes.studentId.newValue;
-    if (changes.allowlist)     settings.allowlist     = changes.allowlist.newValue;
-    if (changes.useLlmContext) settings.useLlmContext = changes.useLlmContext.newValue;
-    if (changes.useLlmGrading) settings.useLlmGrading = changes.useLlmGrading.newValue;
+    if (changes.backendUrl)          settings.backendUrl          = changes.backendUrl.newValue;
+    if (changes.studentApiKey)       settings.studentApiKey       = changes.studentApiKey.newValue;
+    if (changes.studentId)           settings.studentId           = changes.studentId.newValue;
+    if (changes.allowlist)           settings.allowlist           = changes.allowlist.newValue;
+    if (changes.useLlmContext)       settings.useLlmContext       = changes.useLlmContext.newValue;
+    if (changes.useLlmGrading)       settings.useLlmGrading       = changes.useLlmGrading.newValue;
+    if (changes.attentionMonitoring) {
+      settings.attentionMonitoring = changes.attentionMonitoring.newValue;
+      if (settings.attentionMonitoring) startAttentionMonitoring();
+      else stopAttentionMonitoring();
+    }
+    if (changes.videoQuizEnabled) {
+      settings.videoQuizEnabled = changes.videoQuizEnabled.newValue;
+      if (settings.videoQuizEnabled) startVideoMonitoring();
+      else stopVideoMonitoring();
+    }
   });
 
 })();

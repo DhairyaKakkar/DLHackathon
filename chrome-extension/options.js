@@ -14,6 +14,8 @@ const DEFAULTS = {
     "canvas.instructure.com",
     "moodle.org",
     "notion.site",
+    "khanacademy.org",
+    "youtube.com",
   ],
 };
 
@@ -45,7 +47,7 @@ function renderAllowlist() {
 // ── Load settings ─────────────────────────────────────────────────────────────
 
 chrome.storage.sync.get(
-  ["backendUrl", "studentApiKey", "autoPopMinutes", "allowlist", "useLlmContext", "useLlmGrading"],
+  ["backendUrl", "studentApiKey", "autoPopMinutes", "allowlist", "useLlmContext", "useLlmGrading", "attentionMonitoring", "videoQuizEnabled"],
   (data) => {
     document.getElementById("backendUrl").value =
       data.backendUrl ?? DEFAULTS.backendUrl;
@@ -57,6 +59,10 @@ chrome.storage.sync.get(
       data.useLlmContext ?? false;
     document.getElementById("useLlmGrading").checked =
       data.useLlmGrading ?? false;
+    document.getElementById("attentionMonitoring").checked =
+      data.attentionMonitoring ?? false;
+    document.getElementById("videoQuizEnabled").checked =
+      data.videoQuizEnabled ?? false;
 
     allowlist = Array.isArray(data.allowlist) ? [...data.allowlist] : [...DEFAULTS.allowlist];
     renderAllowlist();
@@ -83,12 +89,14 @@ document.getElementById("newPattern").addEventListener("keydown", (e) => {
 
 document.getElementById("saveBtn").addEventListener("click", () => {
   const settings = {
-    backendUrl:    document.getElementById("backendUrl").value.trim()    || DEFAULTS.backendUrl,
-    studentApiKey: document.getElementById("studentApiKey").value.trim() || DEFAULTS.studentApiKey,
-    autoPopMinutes: parseInt(document.getElementById("autoPopMinutes").value || "0", 10),
+    backendUrl:         document.getElementById("backendUrl").value.trim()    || DEFAULTS.backendUrl,
+    studentApiKey:      document.getElementById("studentApiKey").value.trim() || DEFAULTS.studentApiKey,
+    autoPopMinutes:     parseInt(document.getElementById("autoPopMinutes").value || "0", 10),
     allowlist,
-    useLlmContext: document.getElementById("useLlmContext").checked,
-    useLlmGrading: document.getElementById("useLlmGrading").checked,
+    useLlmContext:      document.getElementById("useLlmContext").checked,
+    useLlmGrading:      document.getElementById("useLlmGrading").checked,
+    attentionMonitoring: document.getElementById("attentionMonitoring").checked,
+    videoQuizEnabled:    document.getElementById("videoQuizEnabled").checked,
   };
 
   chrome.storage.sync.set(settings, () => {
