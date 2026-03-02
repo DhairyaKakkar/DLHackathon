@@ -460,13 +460,23 @@ class ExtensionLearnRequest(BaseModel):
     question_text: Optional[str] = None   # the question the student just got wrong
 
 
+class LessonSceneOut(BaseModel):
+    title: str
+    caption: str
+    narration: str
+    audio_b64: str = ""
+    video_b64: str = ""
+    duration_seconds: int = 8
+
+
 class ExtensionLearnOut(BaseModel):
     topic: str
     html: str = ""          # self-contained HTML animation (empty when Sora is used)
     audio_b64: str          # OpenAI TTS MP3, base64-encoded
     quiz_questions: list[QuestionOut]
     video_b64: str = ""     # Sora-generated MP4, base64-encoded (empty if HTML fallback)
-    video_type: str = "html_animation"  # "sora_mp4" | "html_animation"
+    video_type: str = "html_animation"  # "sora_scene_playlist" | "sora_mp4" | "html_animation"
+    scenes: list[LessonSceneOut] = []
 
 
 @router.post("/learn", response_model=ExtensionLearnOut)
@@ -493,7 +503,7 @@ def get_lesson(
     # Enrich context with YouTube transcript when available
     page_context = payload.page_context
     if payload.page_url and "youtube.com" in payload.page_url or "youtu.be" in payload.page_url:
-        transcript = get_youtube_transcript(payload.page_url)
+        transcript = get_youtube_transcript(payload.page_url, max_chars=None)
         if transcript:
             page_context = f"[YouTube transcript]\n{transcript}\n\n{page_context}".strip()
 
@@ -552,6 +562,17 @@ def get_lesson(
         quiz_questions=[QuestionOut.model_validate(q) for q in saved_questions],
         video_b64=lesson.video_b64,
         video_type=lesson.video_type,
+        scenes=[
+            LessonSceneOut(
+                title=scene.title,
+                caption=scene.caption,
+                narration=scene.narration,
+                audio_b64=scene.audio_b64,
+                video_b64=scene.video_b64,
+                duration_seconds=scene.duration_seconds,
+            )
+            for scene in lesson.scenes
+        ],
     )
 
 

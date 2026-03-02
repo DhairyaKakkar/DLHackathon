@@ -21,9 +21,12 @@ import {
   getDusBg,
   getDusLabel,
 } from "@/lib/utils";
+import type { TopicMetrics } from "@/lib/types";
 import DUSGauge from "@/components/DUSGauge";
 import MetricCard from "@/components/MetricCard";
 import TopicTable from "@/components/TopicTable";
+import LearningPath from "@/components/LearningPath";
+import TopicRoadmapModal from "@/components/TopicRoadmapModal";
 import { StudentDashboardSkeleton } from "@/components/Skeletons";
 import ErrorState from "@/components/ErrorState";
 import Navbar from "@/components/Navbar";
@@ -45,6 +48,8 @@ export default function StudentDashboardPage() {
   const studentId = Number(params.id);
   const [auth, setAuthState] = useState<EaleAuth | null>(null);
   const [checking, setChecking] = useState(true);
+  const [tab, setTab] = useState<"overview" | "roadmap">("overview");
+  const [selectedTopic, setSelectedTopic] = useState<TopicMetrics | null>(null);
 
   useEffect(() => {
     const a = getAuth();
@@ -137,7 +142,7 @@ export default function StudentDashboardPage() {
               </p>
             </div>
 
-            {/* DUS Hero card */}
+            {/* DUS Hero card — always visible */}
             <div
               className={`bg-white rounded-2xl border p-6 sm:p-8 flex flex-col sm:flex-row items-center gap-6 shadow-card ${getDusBg(data.overall_dus)}`}
             >
@@ -183,77 +188,95 @@ export default function StudentDashboardPage() {
               </div>
             </div>
 
-            {/* Four metric cards */}
-            {data.topics.length > 0 && (() => {
-              const avg = (key: keyof typeof data.topics[0]) =>
-                Math.round(
-                  data.topics.reduce((s, t) => s + (t[key] as number), 0) /
-                    data.topics.length,
-                );
-              const worstTopic = (key: keyof typeof data.topics[0]) =>
-                data.topics.reduce((a, b) =>
-                  (a[key] as number) < (b[key] as number) ? a : b,
-                );
-              const retentionTopic = worstTopic("retention");
-              const transferTopic = worstTopic("transfer_robustness");
-              const calibTopic = worstTopic("calibration");
-              const masteryTopic = worstTopic("mastery");
-
-              return (
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                  <MetricCard label="Mastery" score={avg("mastery")} explanation={masteryTopic.mastery_explanation} icon={<BarChart3 className="w-4 h-4" />} sublabel="Recent accuracy on originals" />
-                  <MetricCard label="Retention" score={avg("retention")} explanation={retentionTopic.retention_explanation} icon={<Clock className="w-4 h-4" />} sublabel="Accuracy across time gaps" />
-                  <MetricCard label="Transfer" score={avg("transfer_robustness")} explanation={transferTopic.transfer_explanation} icon={<Shuffle className="w-4 h-4" />} sublabel="Accuracy on variants vs originals" />
-                  <MetricCard label="Calibration" score={avg("calibration")} explanation={calibTopic.calibration_explanation} icon={<Target className="w-4 h-4" />} sublabel={`Confidence accuracy (overconf: ${calibTopic.overconfidence_gap > 0 ? "+" : ""}${Math.round(calibTopic.overconfidence_gap)}pp)`} />
-                </div>
-              );
-            })()}
-
-            {/* Per-topic table */}
-            <section>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-base font-semibold text-gray-700">Per-Topic Breakdown</h2>
-                <span className="text-xs text-gray-400">{data.topics.length} topic{data.topics.length !== 1 ? "s" : ""}</span>
-              </div>
-              <TopicTable topics={data.topics} studentId={studentId} />
-            </section>
-
-            {/* Per-topic detail */}
-            {data.topics.map((topic) => (
-              <section key={topic.topic_id} className="animate-fade-in">
-                <div className="flex items-center gap-3 mb-3">
-                  <h3 className="text-sm font-semibold text-gray-700">{topic.topic_name}</h3>
-                  <span className="text-xs text-gray-400">
-                    {topic.total_attempts} attempts · DUS{" "}
-                    <span className={getDusTextClass(topic.durable_understanding_score)}>
-                      {Math.round(topic.durable_understanding_score)}
-                    </span>
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                  <MetricCard label="Mastery" score={topic.mastery} explanation={topic.mastery_explanation} icon={<BarChart3 className="w-4 h-4" />} />
-                  <MetricCard label="Retention" score={topic.retention} explanation={topic.retention_explanation} icon={<Clock className="w-4 h-4" />} />
-                  <MetricCard label="Transfer" score={topic.transfer_robustness} explanation={topic.transfer_explanation} icon={<Shuffle className="w-4 h-4" />} />
-                  <MetricCard label="Calibration" score={topic.calibration} explanation={topic.calibration_explanation} icon={<Target className="w-4 h-4" />}
-                    sublabel={topic.overconfidence_gap > 5 ? `Overconf: +${Math.round(topic.overconfidence_gap)}pp` : topic.overconfidence_gap < -5 ? `Underconf: ${Math.round(topic.overconfidence_gap)}pp` : undefined}
-                  />
-                </div>
-              </section>
-            ))}
-
-            {/* Go to tasks CTA — students only */}
-            {!isFaculty && (
-              <div className="flex justify-center pt-2 pb-4">
-                <Link
-                  href={`/student/${studentId}/tasks`}
-                  className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-indigo-700 transition-all hover:scale-[1.02] active:scale-95 shadow-sm"
+            {/* Tabs */}
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+              {(["overview", "roadmap"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTab(t)}
+                  className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all capitalize ${
+                    tab === t
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
                 >
-                  <ClipboardList className="w-5 h-5" />
-                  Go to Tasks
-                </Link>
-              </div>
+                  {t === "roadmap" ? "🗺 Roadmap" : "📊 Overview"}
+                </button>
+              ))}
+            </div>
+
+            {/* Overview tab */}
+            {tab === "overview" && (
+              <>
+                {/* Four metric cards */}
+                {data.topics.length > 0 && (() => {
+                  const avg = (key: keyof typeof data.topics[0]) =>
+                    Math.round(
+                      data.topics.reduce((s, t) => s + (t[key] as number), 0) /
+                        data.topics.length,
+                    );
+                  const worstTopic = (key: keyof typeof data.topics[0]) =>
+                    data.topics.reduce((a, b) =>
+                      (a[key] as number) < (b[key] as number) ? a : b,
+                    );
+                  const retentionTopic = worstTopic("retention");
+                  const transferTopic = worstTopic("transfer_robustness");
+                  const calibTopic = worstTopic("calibration");
+                  const masteryTopic = worstTopic("mastery");
+
+                  return (
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                      <MetricCard label="Mastery" score={avg("mastery")} explanation={masteryTopic.mastery_explanation} icon={<BarChart3 className="w-4 h-4" />} sublabel="Recent accuracy on originals" />
+                      <MetricCard label="Retention" score={avg("retention")} explanation={retentionTopic.retention_explanation} icon={<Clock className="w-4 h-4" />} sublabel="Accuracy across time gaps" />
+                      <MetricCard label="Transfer" score={avg("transfer_robustness")} explanation={transferTopic.transfer_explanation} icon={<Shuffle className="w-4 h-4" />} sublabel="Accuracy on variants vs originals" />
+                      <MetricCard label="Calibration" score={avg("calibration")} explanation={calibTopic.calibration_explanation} icon={<Target className="w-4 h-4" />} sublabel={`Confidence accuracy (overconf: ${calibTopic.overconfidence_gap > 0 ? "+" : ""}${Math.round(calibTopic.overconfidence_gap)}pp)`} />
+                    </div>
+                  );
+                })()}
+
+                {/* Per-topic table */}
+                <section>
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-base font-semibold text-gray-700">Per-Topic Breakdown</h2>
+                    <span className="text-xs text-gray-400">{data.topics.length} topic{data.topics.length !== 1 ? "s" : ""}</span>
+                  </div>
+                  <TopicTable topics={data.topics} studentId={studentId} />
+                </section>
+
+                {/* Go to tasks CTA — students only */}
+                {!isFaculty && (
+                  <div className="flex justify-center pt-2 pb-4">
+                    <Link
+                      href={`/student/${studentId}/tasks`}
+                      className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-indigo-700 transition-all hover:scale-[1.02] active:scale-95 shadow-sm"
+                    >
+                      <ClipboardList className="w-5 h-5" />
+                      Go to Tasks
+                    </Link>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Roadmap tab */}
+            {tab === "roadmap" && (
+              <LearningPath
+                topics={data.topics}
+                studentId={studentId}
+                isFaculty={isFaculty}
+                onTopicClick={setSelectedTopic}
+              />
             )}
           </div>
+        )}
+
+        {/* Topic roadmap modal */}
+        {selectedTopic && (
+          <TopicRoadmapModal
+            topic={selectedTopic}
+            studentId={studentId}
+            onClose={() => setSelectedTopic(null)}
+          />
         )}
       </main>
     </div>

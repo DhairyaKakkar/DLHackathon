@@ -95,6 +95,34 @@ export const submitAttempt = (payload: AttemptCreate): Promise<AttemptOut> =>
     body: JSON.stringify(payload),
   });
 
+// ─── Roadmap ──────────────────────────────────────────────────────────────────
+
+export interface TopicRoadmapResource {
+  title: string;
+  url: string;
+  type: "video" | "article" | "practice" | "course" | "documentation";
+  description: string;
+}
+
+export interface TopicRoadmapStep {
+  number: number;
+  title: string;
+  description: string;
+  duration: string;
+}
+
+export interface TopicRoadmap {
+  topic_name: string;
+  diagnosis: string;
+  steps: TopicRoadmapStep[];
+  resources: TopicRoadmapResource[];
+  concepts: string[];
+  estimated_weeks: number;
+}
+
+export const getTopicRoadmap = (studentId: number, topicId: number): Promise<TopicRoadmap> =>
+  request(`/api/v1/metrics/student/${studentId}/topic/${topicId}/roadmap`);
+
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
 export const triggerScheduler = (): Promise<{ tasks_created: number }> =>
