@@ -1055,6 +1055,7 @@
         headers: { "Content-Type": "application/json", "X-API-Key": settings.studentApiKey },
         body: JSON.stringify({
           topic: topicHint || document.title || "",
+          page_url: location.href,
           page_context: getPageText(),
           question_text: questionText || null,
         }),

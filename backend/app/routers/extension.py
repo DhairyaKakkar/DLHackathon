@@ -182,6 +182,14 @@ def get_extension_context(
     """
     student = _get_student(x_api_key, db)
 
+    # ── 0: YouTube transcript enrichment ──────────────────────────────────────
+    page_text = payload.page_text
+    if payload.page_url and ("youtube.com" in payload.page_url or "youtu.be" in payload.page_url):
+        from app.services.youtube_service import get_youtube_transcript
+        transcript = get_youtube_transcript(payload.page_url)
+        if transcript:
+            page_text = f"[YouTube transcript]\n{transcript}\n\n{page_text}".strip()
+
     # ── 1: LLM path (when enabled, always runs first — page context drives the question) ──
     if settings.USE_LLM_CONTEXT and settings.OPENAI_API_KEY:
         from app.services.llm_service import (
@@ -197,7 +205,7 @@ def get_extension_context(
             llm_result = infer_topic_and_generate_question(
                 url=payload.page_url,
                 title=payload.page_title,
-                text_snippet=payload.page_text,
+                text_snippet=page_text,
                 screenshot_b64=payload.page_screenshot,
                 context_hint=payload.context_hint,
             )
@@ -474,6 +482,7 @@ def submit_extension_attempt(
 
 class ExtensionLearnRequest(BaseModel):
     topic: str = ""
+    page_url: str = ""
     page_context: str = ""
     question_text: Optional[str] = None   # the question the student just got wrong
 
@@ -504,10 +513,18 @@ def get_lesson(
         )
 
     from app.services.llm_service import generate_video_lesson
+    from app.services.youtube_service import get_youtube_transcript
+
+    # Enrich context with YouTube transcript when available
+    page_context = payload.page_context
+    if payload.page_url and "youtube.com" in payload.page_url or "youtu.be" in payload.page_url:
+        transcript = get_youtube_transcript(payload.page_url)
+        if transcript:
+            page_context = f"[YouTube transcript]\n{transcript}\n\n{page_context}".strip()
 
     lesson = generate_video_lesson(
         topic=payload.topic or "the topic being studied",
-        page_context=payload.page_context,
+        page_context=page_context,
         question_text=payload.question_text,
     )
     if not lesson:
