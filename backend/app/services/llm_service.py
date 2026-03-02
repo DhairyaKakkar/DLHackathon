@@ -509,51 +509,82 @@ def generate_prove_it_question(
         return None
 
 
-# ─── Learn It ─────────────────────────────────────────────────────────────────
+# ─── Learn It — Animated Video Lesson ────────────────────────────────────────
 
-_LESSON_SYSTEM = """\
-You are an expert educator creating a micro-lesson for a student who is genuinely struggling with a concept.
-Generate a 5-slide animated lesson followed by 2 quiz questions that test comprehension of EXACTLY what the slides taught.
+class LLMVideoLesson(BaseModel):
+    topic: str
+    html: str        # complete self-contained HTML animation
+    narration: str   # spoken narration script (used for TTS)
+    audio_b64: str   # OpenAI TTS-1-HD MP3, base64-encoded
+    quiz: list[LLMLessonQuiz]
 
-Return ONLY a valid JSON object with this exact schema (no markdown fences, no extra keys):
+    @field_validator("quiz")
+    @classmethod
+    def need_quiz(cls, v: list) -> list:
+        if not v:
+            raise ValueError("need at least 1 quiz question")
+        return v[:2]
+
+
+_VIDEO_LESSON_HTML_SYSTEM = """\
+You are an expert educational animator and front-end developer.
+Create a COMPLETE, self-contained HTML file that plays as an animated educational video.
+
+TARGET: displayed in a 440x320px sandboxed iframe. Auto-plays like a video — no user clicks needed.
+
+REQUIRED STRUCTURE:
+- 4 scenes, each 18 seconds (72 seconds total)
+- Smooth 0.8s CSS opacity fade between scenes (auto-advance via setInterval)
+- A progress bar at the bottom that animates from 0% to 100% over 72 seconds
+- After scene 4, loop back to scene 1
+
+SCENE LAYOUT (each scene):
+- A large bold TOPIC TITLE at the very top (same every scene, small font)
+- A SCENE TITLE (medium, bold, scene-specific — what this scene teaches)
+- A VISUAL (SVG or canvas drawing — must be topic-specific and animated)
+- 2-3 lines of EXPLANATION TEXT below the visual
+
+VISUAL REQUIREMENTS — choose the best for the topic:
+- Sorting algorithms: animated SVG bar chart that shows bars being compared/swapped
+- Binary search / arrays: SVG row of labeled boxes, a pointer moving, highlighting
+- Trees / graphs: SVG nodes (circles) and edges (lines), traversal path highlighted
+- Complexity / Big-O: SVG line chart with labelled curves (O(1), O(log n), O(n), O(n²))
+- Recursion: SVG call-stack boxes stacking and unstacking
+- Hash tables: SVG key-value grid with arrow from key to bucket
+- General concept: animated SVG diagram with labeled parts, CSS stroke animation
+- Code: animated typing effect in a styled <pre> block using JS character-by-character append
+
+ANIMATION TECHNIQUES — use at least 2:
+- CSS @keyframes fadeInUp for text paragraphs
+- CSS @keyframes on SVG strokeDashoffset for line/arrow drawing
+- JS setInterval or requestAnimationFrame for bar charts, pointer movement
+- CSS @keyframes pulse or bounce for highlighting
+
+STYLE:
+- body background: #0f172a (dark navy). Text: white. Font: system-ui, Arial (no CDN)
+- Scene 1 accent: #6366f1 (indigo), Scene 2: #f59e0b (amber), Scene 3: #10b981 (emerald), Scene 4: #ef4444 (red)
+- Each scene has a 4px solid left-border in the accent color, rounded card
+- Progress bar: thin (4px) bar at very bottom of body, fills with the accent color of current scene
+
+CONSTRAINTS:
+- All CSS and JS inline — ZERO external dependencies, no CDN links, no fetch()
+- Must work in sandbox="allow-scripts" iframe
+- No alert(), confirm(), prompt()
+- SVG viewBox must be set; canvas must have explicit width/height attributes
+- Each visual must directly illustrate the specific topic (no generic decorations)
+
+RETURN ONLY THE COMPLETE HTML FILE CONTENTS. No markdown fences, no explanation.
+"""
+
+_NARRATION_QUIZ_SYSTEM = """\
+You are an expert educator. Return ONLY a valid JSON object (no markdown):
 {
-  "topic": "<specific topic name, concise>",
-  "slides": [
-    {
-      "type": "concept",
-      "title": "<max 8 words>",
-      "body": "<2-3 sentences, plain language — explain to a complete beginner>",
-      "visual": null
-    },
-    {
-      "type": "analogy",
-      "title": "<max 8 words>",
-      "body": "<a concrete real-world comparison that makes the concept click>",
-      "visual": null
-    },
-    {
-      "type": "example",
-      "title": "<max 8 words>",
-      "body": "<a specific worked example with concrete values/steps>",
-      "visual": null
-    },
-    {
-      "type": "code",
-      "title": "<max 8 words>",
-      "body": "<1-2 sentences explaining the code>",
-      "visual": "<working code snippet, 6-12 lines>"
-    },
-    {
-      "type": "summary",
-      "title": "Key Takeaways",
-      "body": "<2-3 bullet points as a single string separated by \\n>",
-      "visual": null
-    }
-  ],
+  "topic": "<specific topic name, 2-5 words>",
+  "narration": "<spoken narration script for a 72-second animated lesson — 4 paragraphs of ~2 sentences each, one per scene. Natural, engaging voice as if speaking to a student>",
   "quiz": [
     {
       "question_type": "MCQ",
-      "question_text": "<question that references the analogy or example from the slides>",
+      "question_text": "<question testing understanding of a specific concept from this topic>",
       "options": ["option A", "option B", "option C", "option D"],
       "correct_option": "<exact string from options>",
       "rubric": null,
@@ -561,67 +592,110 @@ Return ONLY a valid JSON object with this exact schema (no markdown fences, no e
     },
     {
       "question_type": "SHORT_TEXT",
-      "question_text": "<question asking student to explain something from the lesson in their own words>",
+      "question_text": "<open-ended question requiring explanation in own words>",
       "options": null,
       "correct_option": null,
-      "rubric": ["<key criterion 1 from lesson>", "<key criterion 2 from lesson>"],
+      "rubric": ["<key criterion 1>", "<key criterion 2>"],
       "difficulty": 3
     }
   ]
 }
-
 Rules:
-- Skip the code slide if the topic has no code (replace with a second example slide of type "example")
-- body text must use simple language — no jargon without explanation
-- quiz questions MUST reference the specific analogy or example used in the slides
-- The MCQ must have exactly 4 options with one correct_option matching exactly
+- narration should flow naturally when read aloud; ~130-160 words total
+- quiz questions must test understanding, not recall
+- MCQ must have exactly 4 options with one correct_option matching exactly
 """
 
 
-def generate_lesson_with_quiz(
+def generate_video_lesson(
     topic: str,
     page_context: str = "",
     question_text: Optional[str] = None,
-) -> Optional[LLMLesson]:
+) -> Optional["LLMVideoLesson"]:
     """
-    Generate a 5-slide animated micro-lesson + 2 quiz questions for a struggling student.
-    Returns None on any failure.
+    Generate an animated video lesson with TTS narration + 2 quiz questions.
+
+    Makes 3 sequential API calls:
+      1. GPT-4o (plain text): full self-contained HTML animation
+      2. GPT-4o (json_object): narration script + quiz questions
+      3. OpenAI TTS-1-HD: converts narration to MP3 (base64)
+
+    Returns None on any failure — caller should raise HTTP 503.
     """
+    import base64
+
     if not settings.OPENAI_API_KEY:
         return None
 
-    context_lines = []
+    context_parts: list[str] = [f"Topic: {topic}"]
     if question_text:
-        context_lines.append(f"The student just answered this question incorrectly: {question_text}")
+        context_parts.append(f"The student just got this wrong: {question_text}")
     if page_context:
-        context_lines.append(f"Page context (what they were studying):\n{page_context[:1000]}")
-
-    user_msg = (
-        f"Generate a micro-lesson on: {topic}\n\n"
-        + ("\n".join(context_lines) if context_lines else "")
-    ).strip()
+        context_parts.append(f"Page context:\n{page_context[:800]}")
+    user_context = "\n".join(context_parts)
 
     try:
         client = _openai_client()
-        resp = client.chat.completions.create(
+
+        # ── Call 1: HTML animation ────────────────────────────────────────────
+        html_resp = client.chat.completions.create(
             model=settings.OPENAI_MODEL,
             messages=[
-                {"role": "system", "content": _LESSON_SYSTEM},
-                {"role": "user",   "content": user_msg},
+                {"role": "system", "content": _VIDEO_LESSON_HTML_SYSTEM},
+                {"role": "user",   "content": user_context},
+            ],
+            max_tokens=4096,
+            temperature=0.5,
+        )
+        animation_html = html_resp.choices[0].message.content.strip()
+        # Strip markdown fences if GPT wraps in ```html ... ```
+        if animation_html.startswith("```"):
+            lines = animation_html.split("\n")
+            animation_html = "\n".join(
+                lines[1:-1] if lines[-1].strip() == "```" else lines[1:]
+            )
+
+        # ── Call 2: Narration + quiz (JSON) ───────────────────────────────────
+        nq_resp = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": _NARRATION_QUIZ_SYSTEM},
+                {"role": "user",   "content": user_context},
             ],
             response_format={"type": "json_object"},
-            max_tokens=1200,
+            max_tokens=600,
             temperature=0.4,
         )
-        raw = resp.choices[0].message.content
-        result = LLMLesson.model_validate_json(raw)
+        import json as _json
+        nq_raw = _json.loads(nq_resp.choices[0].message.content)
+        detected_topic = nq_raw.get("topic", topic)
+        narration_text = nq_raw.get("narration", "")
+        raw_quiz = nq_raw.get("quiz", [])
+        quiz = [LLMLessonQuiz.model_validate(q) for q in raw_quiz[:2]]
 
-        logger.info("[LLM] Lesson generated: topic=%r slides=%d", result.topic, len(result.slides))
-        return result
+        # ── Call 3: TTS narration ─────────────────────────────────────────────
+        tts_resp = client.audio.speech.create(
+            model="tts-1-hd",
+            voice="nova",
+            input=narration_text or f"Let's learn about {topic}.",
+        )
+        audio_b64 = base64.b64encode(tts_resp.read()).decode("utf-8")
+
+        logger.info(
+            "[LLM] Video lesson generated: topic=%r html_len=%d quiz=%d",
+            detected_topic, len(animation_html), len(quiz),
+        )
+        return LLMVideoLesson(
+            topic=detected_topic,
+            html=animation_html,
+            narration=narration_text,
+            audio_b64=audio_b64,
+            quiz=quiz,
+        )
 
     except ValidationError as exc:
-        logger.warning("[LLM] Lesson schema invalid: %s", exc)
+        logger.warning("[LLM] Video lesson schema invalid: %s", exc)
         return None
     except Exception as exc:
-        logger.warning("[LLM] Lesson generation failed (%s): %s", type(exc).__name__, exc)
+        logger.warning("[LLM] Video lesson generation failed (%s): %s", type(exc).__name__, exc)
         return None

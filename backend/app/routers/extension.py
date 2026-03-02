@@ -470,14 +470,7 @@ def submit_extension_attempt(
     )
 
 
-# ─── Learn It ─────────────────────────────────────────────────────────────────
-
-class LessonSlideOut(BaseModel):
-    type: str
-    title: str
-    body: str
-    visual: Optional[str] = None
-
+# ─── Learn It — Animated Video Lesson ────────────────────────────────────────
 
 class ExtensionLearnRequest(BaseModel):
     topic: str = ""
@@ -487,7 +480,8 @@ class ExtensionLearnRequest(BaseModel):
 
 class ExtensionLearnOut(BaseModel):
     topic: str
-    slides: list[LessonSlideOut]
+    html: str           # complete self-contained HTML animation (for iframe srcdoc)
+    audio_b64: str      # OpenAI TTS MP3, base64-encoded
     quiz_questions: list[QuestionOut]
 
 
@@ -498,9 +492,8 @@ def get_lesson(
     db: Session = Depends(get_db),
 ):
     """
-    Generate a 5-slide animated micro-lesson + 2 quiz questions for a struggling student.
-    Slides are typed (concept / analogy / example / code / summary) and played in the
-    extension panel like a mini video. Quiz questions are saved to DB tagged LEARN_IT.
+    Generate a GPT-4o animated video lesson (self-contained HTML) + TTS narration audio
+    + 2 quiz questions for a struggling student. Quiz questions are saved to DB tagged LEARN_IT.
     """
     _get_student(x_api_key, db)   # auth only
 
@@ -510,9 +503,9 @@ def get_lesson(
             detail="Learn It requires LLM mode (USE_LLM_CONTEXT=true + OPENAI_API_KEY).",
         )
 
-    from app.services.llm_service import generate_lesson_with_quiz
+    from app.services.llm_service import generate_video_lesson
 
-    lesson = generate_lesson_with_quiz(
+    lesson = generate_video_lesson(
         topic=payload.topic or "the topic being studied",
         page_context=payload.page_context,
         question_text=payload.question_text,
@@ -562,10 +555,8 @@ def get_lesson(
 
     return ExtensionLearnOut(
         topic=lesson.topic,
-        slides=[
-            LessonSlideOut(type=s.type, title=s.title, body=s.body, visual=s.visual)
-            for s in lesson.slides
-        ],
+        html=lesson.html,
+        audio_b64=lesson.audio_b64,
         quiz_questions=[QuestionOut.model_validate(q) for q in saved_questions],
     )
 

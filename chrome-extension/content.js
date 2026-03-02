@@ -24,9 +24,8 @@
   let _answerPasted = false;
 
   // ── Learn It state ─────────────────────────────────────────────────────────
-  let _lessonData = null;
   let _lessonQuizQueue = [];
-  let _lessonSlideTimer = null;
+  let _activeAudio = null;  // TTS narration Audio object
 
   // ── Attention monitoring state ─────────────────────────────────────────────
   let _attentionStream = null, _attentionVideo = null;
@@ -242,37 +241,17 @@
       text-transform: uppercase; letter-spacing: .04em;
     }
 
-    /* ── Learn It ── */
+    /* ── Learn It — Video ── */
     #eale-panel.lesson-mode { width: 480px; }
-
-    .lesson-progress { height: 3px; background: rgba(255,255,255,.25); border-radius: 2px; overflow: hidden; margin-top: 6px; }
-    .lesson-progress-fill { height: 100%; background: rgba(255,255,255,.9); border-radius: 2px; transition: width .5s ease; }
-
-    .lesson-slide { border-radius: 10px; padding: 14px; margin: 12px 16px 4px; animation: slideInRight .25s ease; }
-    .lesson-slide.concept  { background: linear-gradient(135deg,#eff6ff,#dbeafe); color:#1e3a5f; }
-    .lesson-slide.analogy  { background: linear-gradient(135deg,#fff7ed,#fed7aa); color:#7c2d12; }
-    .lesson-slide.example  { background: linear-gradient(135deg,#f0fdf4,#bbf7d0); color:#14532d; }
-    .lesson-slide.code     { background: #1e1e2e; color:#cdd6f4; }
-    .lesson-slide.summary  { background: linear-gradient(135deg,#faf5ff,#e9d5ff); color:#4a1d96; }
-    .slide-type-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; opacity:.6; margin-bottom:4px; }
-    .slide-title { font-size:14px; font-weight:700; line-height:1.35; margin-bottom:7px; }
-    .slide-body  { font-size:12px; line-height:1.65; opacity:.9; white-space:pre-line; }
-    .slide-code-block { font-family:monospace; font-size:11px; line-height:1.5; background:rgba(0,0,0,.35); border-radius:6px; padding:10px 12px; margin-top:10px; white-space:pre-wrap; overflow-x:auto; }
-
-    .lesson-controls { display:flex; align-items:center; justify-content:space-between; padding:8px 16px 14px; }
     .lesson-nav { background:none; border:1.5px solid #e5e7eb; border-radius:7px; padding:5px 12px; font-size:12px; font-weight:600; color:#4b5563; cursor:pointer; transition:background .1s; }
-    .lesson-nav:hover:not([disabled]) { background:#f3f4f6; }
-    .lesson-nav[disabled] { opacity:.35; cursor:not-allowed; }
+    .lesson-nav:hover { background:#f3f4f6; }
     .lesson-nav.primary { background:#4f46e5; color:#fff; border-color:#4f46e5; }
     .lesson-nav.primary:hover { background:#4338ca; }
-    .slide-counter { font-size:11px; color:#9ca3af; }
-
     .learn-it-btn { background:#f0fdf4; color:#15803d; border:1.5px solid #86efac; border-radius:8px; padding:9px; font-size:12px; font-weight:600; cursor:pointer; transition:background .1s; width:100%; margin-top:4px; }
     .learn-it-btn:hover { background:#dcfce7; }
-
     .mode-badge.learn-it { background:#fce7f3; color:#9d174d; }
-
-    @keyframes slideInRight { from { opacity:0; transform:translateX(16px); } to { opacity:1; transform:translateX(0); } }
+    #eale-audio-btn { background:none; border:1.5px solid #e5e7eb; border-radius:7px; padding:5px 12px; font-size:12px; font-weight:600; color:#4b5563; cursor:pointer; transition:background .1s; }
+    #eale-audio-btn:hover { background:#f3f4f6; }
 
     /* Attention button states */
     #eale-btn.attention-absent {
@@ -374,8 +353,7 @@
     }
     _activeVideo = null;
     // Clean up lesson state
-    if (_lessonSlideTimer) { clearTimeout(_lessonSlideTimer); _lessonSlideTimer = null; }
-    _lessonData = null;
+    if (_activeAudio) { _activeAudio.pause(); _activeAudio = null; }
     _lessonQuizQueue = [];
   }
 
@@ -1065,11 +1043,11 @@
         </div>
         <button class="close-btn" title="Close">✕</button>
       </div>
-      <div class="spinner"><div class="spin"></div> Generating animated lesson…</div>
+      <div class="spinner"><div class="spin"></div> Generating animated video lesson…</div>
     `);
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 60000);
+    const timer = setTimeout(() => controller.abort(), 90000);
 
     try {
       const res = await fetch(`${settings.backendUrl}/api/v1/extension/learn`, {
@@ -1088,7 +1066,7 @@
         throw new Error(err.detail || `HTTP ${res.status}`);
       }
       const data = await res.json();
-      showLesson(data);
+      showVideoLesson(data);
     } catch (err) {
       clearTimeout(timer);
       showError(err.name === "AbortError"
@@ -1097,86 +1075,75 @@
     }
   }
 
-  function showLesson(lessonData) {
+  function showVideoLesson(lessonData) {
     state = "lesson";
-    _lessonData = lessonData;
     _lessonQuizQueue = (lessonData.quiz_questions || []).map((q) => ({
       task_id: null,
       task_type: null,
       topic_name: lessonData.topic,
       question: q,
-      rationale: "Quiz generated from your lesson — testing what you just learned.",
+      rationale: "Quiz from your AI video lesson — testing what you just watched.",
       mode: "LEARN_IT",
       context_hint: null,
     }));
     panel.classList.add("lesson-mode");
 
-    const SLIDE_EMOJIS = { concept: "💡", analogy: "🔁", example: "📝", code: "💻", summary: "⭐" };
-    const SLIDE_AUTO_MS = 12000;
+    // Build iframe with the GPT-generated animation HTML
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("sandbox", "allow-scripts");
+    iframe.style.cssText = "width:444px;height:300px;border:none;border-radius:10px;display:block;margin:0 auto;";
+    iframe.srcdoc = lessonData.html;
 
-    function renderSlide(idx) {
-      if (_lessonSlideTimer) clearTimeout(_lessonSlideTimer);
-      const slides = lessonData.slides;
-      const slide = slides[idx];
-      const isLast = idx === slides.length - 1;
-      const pct = Math.round(((idx + 1) / slides.length) * 100);
-      const emoji = SLIDE_EMOJIS[slide.type] || "📖";
-
-      const codeHtml = slide.visual && slide.type === "code"
-        ? `<pre class="slide-code-block">${escHtml(slide.visual)}</pre>` : "";
-
-      renderPanel(`
-        <div class="panel-header" style="flex-direction:column;gap:5px;align-items:stretch;padding-bottom:8px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;">
-            <div class="title">📚 ${escHtml(lessonData.topic)}</div>
-            <button class="close-btn" title="Close">✕</button>
-          </div>
-          <div class="lesson-progress">
-            <div class="lesson-progress-fill" style="width:${pct}%"></div>
-          </div>
-        </div>
-        <div style="padding:0 16px;">
-          <div class="lesson-slide ${slide.type}">
-            <div class="slide-type-label">${emoji} ${slide.type}</div>
-            <div class="slide-title">${escHtml(slide.title)}</div>
-            <div class="slide-body">${escHtml(slide.body)}</div>
-            ${codeHtml}
-          </div>
-        </div>
-        <div class="lesson-controls">
-          <button class="lesson-nav" id="ls-prev" ${idx === 0 ? "disabled" : ""}>← Back</button>
-          <span class="slide-counter">${idx + 1} / ${slides.length}</span>
-          ${isLast
-            ? `<button class="lesson-nav primary" id="ls-quiz">Quiz me →</button>`
-            : `<button class="lesson-nav" id="ls-next">Next →</button>`}
-        </div>
-      `);
-
-      // Auto-advance (not on last slide)
-      if (!isLast) {
-        _lessonSlideTimer = setTimeout(() => renderSlide(idx + 1), SLIDE_AUTO_MS);
-      }
-
-      panel.querySelector("#ls-prev")?.addEventListener("click", () => {
-        if (_lessonSlideTimer) clearTimeout(_lessonSlideTimer);
-        renderSlide(Math.max(0, idx - 1));
-      });
-      panel.querySelector("#ls-next")?.addEventListener("click", () => {
-        if (_lessonSlideTimer) clearTimeout(_lessonSlideTimer);
-        renderSlide(idx + 1);
-      });
-      panel.querySelector("#ls-quiz")?.addEventListener("click", () => {
-        if (_lessonSlideTimer) clearTimeout(_lessonSlideTimer);
-        panel.classList.remove("lesson-mode");
-        if (_lessonQuizQueue.length > 0) {
-          showQuiz(_lessonQuizQueue.shift());
-        } else {
-          closePanel();
-        }
-      });
+    // TTS narration audio
+    if (_activeAudio) { _activeAudio.pause(); _activeAudio = null; }
+    if (lessonData.audio_b64) {
+      _activeAudio = new Audio(`data:audio/mp3;base64,${lessonData.audio_b64}`);
+      _activeAudio.volume = 0.9;
     }
 
-    renderSlide(0);
+    renderPanel(`
+      <div class="panel-header">
+        <div>
+          <div class="title">📚 ${escHtml(lessonData.topic)}</div>
+          <div class="meta" style="opacity:.7">AI-generated video · with narration</div>
+        </div>
+        <button class="close-btn" title="Close">✕</button>
+      </div>
+      <div id="eale-video-wrap" style="padding:4px 16px 6px;"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 16px 14px;gap:8px;">
+        <button id="eale-audio-btn">🔊 Narration</button>
+        <button class="lesson-nav primary" id="ls-quiz-btn">Quiz me →</button>
+      </div>
+    `);
+
+    panel.querySelector("#eale-video-wrap").appendChild(iframe);
+
+    // Start audio slightly after iframe loads
+    setTimeout(() => _activeAudio?.play().catch(() => {}), 900);
+
+    // Audio toggle
+    const audioBtnEl = panel.querySelector("#eale-audio-btn");
+    audioBtnEl?.addEventListener("click", () => {
+      if (!_activeAudio) return;
+      if (_activeAudio.paused) {
+        _activeAudio.play().catch(() => {});
+        audioBtnEl.textContent = "🔊 Narration";
+      } else {
+        _activeAudio.pause();
+        audioBtnEl.textContent = "🔇 Paused";
+      }
+    });
+
+    // Quiz button
+    panel.querySelector("#ls-quiz-btn")?.addEventListener("click", () => {
+      if (_activeAudio) { _activeAudio.pause(); _activeAudio = null; }
+      panel.classList.remove("lesson-mode");
+      if (_lessonQuizQueue.length > 0) {
+        showQuiz(_lessonQuizQueue.shift());
+      } else {
+        closePanel();
+      }
+    });
   }
 
   // ── HTML escaping ──────────────────────────────────────────────────────────
