@@ -6,8 +6,8 @@ POST /api/v1/extension/context  → pick best question for the current page
 POST /api/v1/extension/submit   → record attempt, return feedback + updated DUS
 
 Question-selection priority (/context):
-  1. Overdue scheduled task (RETEST / TRANSFER) — always checked first
-  2. LLM path (if USE_LLM_CONTEXT=true + OPENAI_API_KEY set + student not rate-limited)
+  1. LLM path (if USE_LLM_CONTEXT=true + OPENAI_API_KEY set + student not rate-limited)
+  2. Overdue scheduled task (RETEST / TRANSFER) — when LLM is disabled or fails
   3. Keyword-match against TOPIC_KEYWORD_MAP
   4. Random fallback
 
@@ -169,42 +169,14 @@ def get_extension_context(
     Select the best question for the current learning page.
 
     Priority:
-      1. Overdue scheduled task
-      2. LLM-generated question (if USE_LLM_CONTEXT=true)
+      1. LLM-generated question (if USE_LLM_CONTEXT=true) — page context first
+      2. Overdue scheduled task (when LLM disabled or fails)
       3. Keyword-matched question from existing bank
       4. Random question fallback
     """
     student = _get_student(x_api_key, db)
 
-    # ── 1: Due tasks (always first) ───────────────────────────────────────────
-    now = datetime.utcnow()
-    due_task = (
-        db.query(ScheduledTask)
-          .filter(
-              ScheduledTask.student_id == student.id,
-              ScheduledTask.completed_at.is_(None),
-              ScheduledTask.due_at <= now,
-          )
-          .order_by(ScheduledTask.due_at)
-          .first()
-    )
-
-    if due_task:
-        q = due_task.question
-        topic = db.query(Topic).filter(Topic.id == q.topic_id).first()
-        return ExtensionContextOut(
-            task_id=due_task.id,
-            task_type=due_task.task_type.value,
-            topic_name=topic.name if topic else "Unknown",
-            question=QuestionOut.model_validate(q),
-            rationale=(
-                f"You have a due {due_task.task_type.value} task on this question "
-                f"(was due {due_task.due_at.strftime('%b %d')})."
-            ),
-            mode="DUE_TASK",
-        )
-
-    # ── 2: LLM path ───────────────────────────────────────────────────────────
+    # ── 1: LLM path (when enabled, always runs first — page context drives the question) ──
     if settings.USE_LLM_CONTEXT and settings.OPENAI_API_KEY:
         from app.services.llm_service import (
             infer_topic_and_generate_question,
@@ -266,7 +238,35 @@ def get_extension_context(
                     rationale=llm_result.rationale,
                     mode="LLM",
                 )
-        # Rate-limited or LLM failed — fall through to keyword/random
+        # Rate-limited or LLM failed — fall through to due tasks / keyword / random
+
+    # ── 2: Due tasks (when LLM is disabled or failed) ─────────────────────────
+    now = datetime.utcnow()
+    due_task = (
+        db.query(ScheduledTask)
+          .filter(
+              ScheduledTask.student_id == student.id,
+              ScheduledTask.completed_at.is_(None),
+              ScheduledTask.due_at <= now,
+          )
+          .order_by(ScheduledTask.due_at)
+          .first()
+    )
+
+    if due_task:
+        q = due_task.question
+        topic = db.query(Topic).filter(Topic.id == q.topic_id).first()
+        return ExtensionContextOut(
+            task_id=due_task.id,
+            task_type=due_task.task_type.value,
+            topic_name=topic.name if topic else "Unknown",
+            question=QuestionOut.model_validate(q),
+            rationale=(
+                f"You have a due {due_task.task_type.value} task on this question "
+                f"(was due {due_task.due_at.strftime('%b %d')})."
+            ),
+            mode="DUE_TASK",
+        )
 
     # ── 3: Keyword-inferred topic ─────────────────────────────────────────────
     page_content = payload.page_text or payload.page_url

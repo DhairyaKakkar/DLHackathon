@@ -462,6 +462,9 @@
 
     state = "submitting";
 
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30000);
+
     try {
       const res = await fetch(`${settings.backendUrl}/api/v1/extension/submit`, {
         method: "POST",
@@ -476,7 +479,9 @@
           confidence,
           reasoning,
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timer);
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -486,7 +491,12 @@
       const data = await res.json();
       showResult(data);
     } catch (err) {
-      showError(`Submit failed: ${err.message}`);
+      clearTimeout(timer);
+      if (err.name === "AbortError") {
+        showError("Submit timed out (30 s). Please try again.");
+      } else {
+        showError(`Submit failed: ${err.message}`);
+      }
     }
   }
 
@@ -511,6 +521,9 @@
       showLoading();
     }
 
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 45000);
+
     try {
       const res = await fetch(`${settings.backendUrl}/api/v1/extension/context`, {
         method: "POST",
@@ -523,7 +536,9 @@
           page_title: document.title || "",
           page_text: getPageText(),
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timer);
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -533,7 +548,12 @@
       const ctx = await res.json();
       showQuiz(ctx);
     } catch (err) {
-      showError(`Could not fetch question: ${err.message}`);
+      clearTimeout(timer);
+      if (err.name === "AbortError") {
+        showError("Request timed out (45 s). Check that the backend is running.");
+      } else {
+        showError(`Could not fetch question: ${err.message}`);
+      }
     }
   }
 

@@ -329,17 +329,17 @@ def seed(db: Session) -> None:
 
     db.flush()
 
-    # ── Scheduled Tasks (some already due for demo) ───────────────────────────
-    # Alice — next retests due now
-    _task(db, alice, q7, -0.1, TaskType.RETEST)    # overdue
-    _task(db, alice, q4, 1.0, TaskType.RETEST)     # due tomorrow
-    _task(db, alice, q4v1, -0.1, TaskType.TRANSFER)  # overdue transfer
+    # ── Scheduled Tasks (all due in the future so LLM runs after a fresh reset) ─
+    # Alice — upcoming retests
+    _task(db, alice, q7, 3.0, TaskType.RETEST)
+    _task(db, alice, q4, 2.0, TaskType.RETEST)
+    _task(db, alice, q4v1, 4.0, TaskType.TRANSFER)
 
-    # Bob — overdue retests
-    _task(db, bob, q4, -0.1, TaskType.RETEST)      # overdue
-    _task(db, bob, q7, -0.1, TaskType.RETEST)      # overdue
-    _task(db, bob, q4v1, -0.1, TaskType.TRANSFER)  # overdue transfer
-    _task(db, bob, q5v1, 1.0, TaskType.TRANSFER)   # due tomorrow
+    # Bob — upcoming retests
+    _task(db, bob, q4, 3.0, TaskType.RETEST)
+    _task(db, bob, q7, 3.0, TaskType.RETEST)
+    _task(db, bob, q4v1, 4.0, TaskType.TRANSFER)
+    _task(db, bob, q5v1, 5.0, TaskType.TRANSFER)
 
     db.commit()
     logger.info("Seeding complete.")
