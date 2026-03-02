@@ -52,18 +52,17 @@
     .quiz-btn:hover { background: #4338ca; }
     .quiz-btn:disabled { opacity: .55; cursor: not-allowed; }
 
+    .dashboard-btn {
+      background: #fff; color: #4f46e5; border: 1.5px solid #818cf8;
+      border-radius: 9px; padding: 10px; font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: all .12s; width: 100%; text-align: center;
+      text-decoration: none; display: block;
+    }
+    .dashboard-btn:hover { background: #eef2ff; border-color: #4f46e5; }
+
     .status-msg { font-size: 11px; color: #64748b; text-align: center; min-height: 14px; }
     .status-msg.ok  { color: #16a34a; }
     .status-msg.err { color: #dc2626; }
-
-    .links { display: flex; gap: 6px; }
-    .link-btn {
-      flex: 1; background: #f8fafc; border: 1.5px solid #e2e8f0;
-      border-radius: 7px; padding: 7px 4px; font-size: 11px; font-weight: 600;
-      color: #475569; cursor: pointer; transition: all .12s; text-align: center;
-      text-decoration: none; display: block;
-    }
-    .link-btn:hover { border-color: #818cf8; color: #4f46e5; background: #eef2ff; }
 
     .footer {
       border-top: 1px solid #f1f5f9; padding: 10px 16px;
@@ -94,12 +93,8 @@
     <div class="quick-select">
       <span class="qs-label">Switch Demo Student</span>
       <div class="qs-btns">
-        <button class="qs-btn" id="aliceBtn" data-key="student-alice-key" data-name="Alice Chen">
-          Alice
-        </button>
-        <button class="qs-btn" id="bobBtn" data-key="student-bob-key" data-name="Bob Martinez">
-          Bob
-        </button>
+        <button class="qs-btn" id="aliceBtn" data-key="student-alice-key" data-name="Alice Chen">Alice</button>
+        <button class="qs-btn" id="bobBtn" data-key="student-bob-key" data-name="Bob Martinez">Bob</button>
       </div>
     </div>
 
@@ -107,12 +102,10 @@
     <button class="quiz-btn" id="quizBtn">Trigger EALE Check on Current Tab</button>
     <div class="status-msg" id="statusMsg"></div>
 
-    <!-- Quick links to dashboards -->
-    <div class="links">
-      <a class="link-btn" href="http://localhost:3000/student/1" target="_blank">Alice's Dashboard</a>
-      <a class="link-btn" href="http://localhost:3000/student/2" target="_blank">Bob's Dashboard</a>
-      <a class="link-btn" href="http://localhost:3000/faculty" target="_blank">Faculty</a>
-    </div>
+    <!-- Single dashboard button -->
+    <a class="dashboard-btn" href="http://localhost:3000/login" target="_blank" id="dashboardBtn">
+      📊 My Dashboard
+    </a>
   </div>
 
   <div class="footer">
