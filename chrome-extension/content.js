@@ -324,16 +324,35 @@
 
   // ── Build UI ───────────────────────────────────────────────────────────────
 
-  // Floating button
+  // Floating buttons row
+  const btnRow = document.createElement("div");
+  btnRow.style.cssText = "display:flex;gap:6px;align-items:center;justify-content:flex-end;";
+
   const btn = document.createElement("button");
   btn.id = "eale-btn";
   btn.innerHTML = `<span class="dot"></span> EALE Check`;
-  container.appendChild(btn);
+
+  const learnBtn = document.createElement("button");
+  learnBtn.id = "eale-learn-floating";
+  learnBtn.innerHTML = `📚`;
+  learnBtn.title = "Learn this topic";
+  learnBtn.style.cssText = `
+    background:#059669;color:#fff;border:none;border-radius:24px;
+    padding:10px 13px;font-size:14px;cursor:pointer;
+    box-shadow:0 4px 14px rgba(5,150,105,.4);
+    transition:background .15s,transform .1s;
+  `;
+  learnBtn.onmouseenter = () => { learnBtn.style.background = "#047857"; learnBtn.style.transform = "translateY(-1px)"; };
+  learnBtn.onmouseleave = () => { learnBtn.style.background = "#059669"; learnBtn.style.transform = ""; };
+
+  btnRow.appendChild(learnBtn);
+  btnRow.appendChild(btn);
+  container.appendChild(btnRow);
 
   // Panel
   const panel = document.createElement("div");
   panel.id = "eale-panel";
-  container.insertBefore(panel, btn);
+  container.insertBefore(panel, btnRow);
 
   function renderPanel(html) {
     panel.innerHTML = html;
@@ -756,11 +775,11 @@
     _attentionVideo.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;top:-9999px;left:-9999px;";
     document.documentElement.appendChild(_attentionVideo);
 
-    // Switch CompVis to yolov8n once
+    // Switch CompVis to yolov8n detection mode once
     fetch(`${CV_URL}/switch-model`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model_name: "yolov8n" }),
+      body: JSON.stringify({ model_name: "yolov8n", config_overrides: { task: "detection" } }),
     }).catch(() => {});
 
     const canvas = document.createElement("canvas");
@@ -1170,7 +1189,15 @@
       .replace(/"/g, "&quot;");
   }
 
-  // ── Button click ───────────────────────────────────────────────────────────
+  // ── Button clicks ──────────────────────────────────────────────────────────
+
+  learnBtn.addEventListener("click", () => {
+    if (panel.classList.contains("open")) {
+      closePanel();
+    } else {
+      triggerLearn(null, document.title || "");
+    }
+  });
 
   btn.addEventListener("click", () => {
     if (panel.classList.contains("open")) {

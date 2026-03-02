@@ -24,7 +24,7 @@ streamlit>=1.28.0
 # wandb>=0.15.0
 
 # Detection (optional — install if using YOLO)
-# ultralytics>=8.0.0
+ultralytics>=8.0.0
 
 # OCR (optional — install as needed)
 # pytesseract>=0.3.10
