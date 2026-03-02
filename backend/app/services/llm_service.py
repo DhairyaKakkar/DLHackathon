@@ -75,6 +75,54 @@ class LLMDifficultyAssessment(BaseModel):
         return max(1, min(5, v))
 
 
+class LLMSlide(BaseModel):
+    type: Literal["concept", "analogy", "example", "code", "summary"]
+    title: str
+    body: str
+    visual: Optional[str] = None   # code snippet for 'code' slides, null otherwise
+
+    @field_validator("title", "body")
+    @classmethod
+    def not_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("must not be empty")
+        return v.strip()
+
+
+class LLMLessonQuiz(BaseModel):
+    question_type: Literal["MCQ", "SHORT_TEXT"]
+    question_text: str
+    options: Optional[list[str]] = None
+    correct_option: Optional[str] = None
+    rubric: Optional[list[str]] = None
+    difficulty: int = 2
+
+    @field_validator("difficulty")
+    @classmethod
+    def clamp(cls, v: int) -> int:
+        return max(1, min(5, v))
+
+
+class LLMLesson(BaseModel):
+    topic: str
+    slides: list[LLMSlide]
+    quiz: list[LLMLessonQuiz]
+
+    @field_validator("slides")
+    @classmethod
+    def need_slides(cls, v: list) -> list:
+        if len(v) < 3:
+            raise ValueError("need at least 3 slides")
+        return v
+
+    @field_validator("quiz")
+    @classmethod
+    def need_quiz(cls, v: list) -> list:
+        if not v:
+            raise ValueError("need at least 1 quiz question")
+        return v[:2]
+
+
 # ─── In-memory TTL cache (question generation only) ───────────────────────────
 # Maps cache_key -> (expiry_unix_ts, LLMQuestion)
 _question_cache: dict[str, tuple[float, LLMQuestion]] = {}
@@ -458,4 +506,122 @@ def generate_prove_it_question(
         return resp.choices[0].message.content.strip()
     except Exception as exc:
         logger.warning("[LLM] Prove-it generation failed: %s", exc)
+        return None
+
+
+# ─── Learn It ─────────────────────────────────────────────────────────────────
+
+_LESSON_SYSTEM = """\
+You are an expert educator creating a micro-lesson for a student who is genuinely struggling with a concept.
+Generate a 5-slide animated lesson followed by 2 quiz questions that test comprehension of EXACTLY what the slides taught.
+
+Return ONLY a valid JSON object with this exact schema (no markdown fences, no extra keys):
+{
+  "topic": "<specific topic name, concise>",
+  "slides": [
+    {
+      "type": "concept",
+      "title": "<max 8 words>",
+      "body": "<2-3 sentences, plain language — explain to a complete beginner>",
+      "visual": null
+    },
+    {
+      "type": "analogy",
+      "title": "<max 8 words>",
+      "body": "<a concrete real-world comparison that makes the concept click>",
+      "visual": null
+    },
+    {
+      "type": "example",
+      "title": "<max 8 words>",
+      "body": "<a specific worked example with concrete values/steps>",
+      "visual": null
+    },
+    {
+      "type": "code",
+      "title": "<max 8 words>",
+      "body": "<1-2 sentences explaining the code>",
+      "visual": "<working code snippet, 6-12 lines>"
+    },
+    {
+      "type": "summary",
+      "title": "Key Takeaways",
+      "body": "<2-3 bullet points as a single string separated by \\n>",
+      "visual": null
+    }
+  ],
+  "quiz": [
+    {
+      "question_type": "MCQ",
+      "question_text": "<question that references the analogy or example from the slides>",
+      "options": ["option A", "option B", "option C", "option D"],
+      "correct_option": "<exact string from options>",
+      "rubric": null,
+      "difficulty": 2
+    },
+    {
+      "question_type": "SHORT_TEXT",
+      "question_text": "<question asking student to explain something from the lesson in their own words>",
+      "options": null,
+      "correct_option": null,
+      "rubric": ["<key criterion 1 from lesson>", "<key criterion 2 from lesson>"],
+      "difficulty": 3
+    }
+  ]
+}
+
+Rules:
+- Skip the code slide if the topic has no code (replace with a second example slide of type "example")
+- body text must use simple language — no jargon without explanation
+- quiz questions MUST reference the specific analogy or example used in the slides
+- The MCQ must have exactly 4 options with one correct_option matching exactly
+"""
+
+
+def generate_lesson_with_quiz(
+    topic: str,
+    page_context: str = "",
+    question_text: Optional[str] = None,
+) -> Optional[LLMLesson]:
+    """
+    Generate a 5-slide animated micro-lesson + 2 quiz questions for a struggling student.
+    Returns None on any failure.
+    """
+    if not settings.OPENAI_API_KEY:
+        return None
+
+    context_lines = []
+    if question_text:
+        context_lines.append(f"The student just answered this question incorrectly: {question_text}")
+    if page_context:
+        context_lines.append(f"Page context (what they were studying):\n{page_context[:1000]}")
+
+    user_msg = (
+        f"Generate a micro-lesson on: {topic}\n\n"
+        + ("\n".join(context_lines) if context_lines else "")
+    ).strip()
+
+    try:
+        client = _openai_client()
+        resp = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": _LESSON_SYSTEM},
+                {"role": "user",   "content": user_msg},
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=1200,
+            temperature=0.4,
+        )
+        raw = resp.choices[0].message.content
+        result = LLMLesson.model_validate_json(raw)
+
+        logger.info("[LLM] Lesson generated: topic=%r slides=%d", result.topic, len(result.slides))
+        return result
+
+    except ValidationError as exc:
+        logger.warning("[LLM] Lesson schema invalid: %s", exc)
+        return None
+    except Exception as exc:
+        logger.warning("[LLM] Lesson generation failed (%s): %s", type(exc).__name__, exc)
         return None

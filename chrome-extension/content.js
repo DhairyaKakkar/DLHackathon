@@ -23,6 +23,11 @@
   let _handwrittenB64 = null; // base64 image from handwriting upload
   let _answerPasted = false;
 
+  // ── Learn It state ─────────────────────────────────────────────────────────
+  let _lessonData = null;
+  let _lessonQuizQueue = [];
+  let _lessonSlideTimer = null;
+
   // ── Attention monitoring state ─────────────────────────────────────────────
   let _attentionStream = null, _attentionVideo = null;
   let _attentionTimer = null, _faceAbsentSince = null;
@@ -237,6 +242,38 @@
       text-transform: uppercase; letter-spacing: .04em;
     }
 
+    /* ── Learn It ── */
+    #eale-panel.lesson-mode { width: 480px; }
+
+    .lesson-progress { height: 3px; background: rgba(255,255,255,.25); border-radius: 2px; overflow: hidden; margin-top: 6px; }
+    .lesson-progress-fill { height: 100%; background: rgba(255,255,255,.9); border-radius: 2px; transition: width .5s ease; }
+
+    .lesson-slide { border-radius: 10px; padding: 14px; margin: 12px 16px 4px; animation: slideInRight .25s ease; }
+    .lesson-slide.concept  { background: linear-gradient(135deg,#eff6ff,#dbeafe); color:#1e3a5f; }
+    .lesson-slide.analogy  { background: linear-gradient(135deg,#fff7ed,#fed7aa); color:#7c2d12; }
+    .lesson-slide.example  { background: linear-gradient(135deg,#f0fdf4,#bbf7d0); color:#14532d; }
+    .lesson-slide.code     { background: #1e1e2e; color:#cdd6f4; }
+    .lesson-slide.summary  { background: linear-gradient(135deg,#faf5ff,#e9d5ff); color:#4a1d96; }
+    .slide-type-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; opacity:.6; margin-bottom:4px; }
+    .slide-title { font-size:14px; font-weight:700; line-height:1.35; margin-bottom:7px; }
+    .slide-body  { font-size:12px; line-height:1.65; opacity:.9; white-space:pre-line; }
+    .slide-code-block { font-family:monospace; font-size:11px; line-height:1.5; background:rgba(0,0,0,.35); border-radius:6px; padding:10px 12px; margin-top:10px; white-space:pre-wrap; overflow-x:auto; }
+
+    .lesson-controls { display:flex; align-items:center; justify-content:space-between; padding:8px 16px 14px; }
+    .lesson-nav { background:none; border:1.5px solid #e5e7eb; border-radius:7px; padding:5px 12px; font-size:12px; font-weight:600; color:#4b5563; cursor:pointer; transition:background .1s; }
+    .lesson-nav:hover:not([disabled]) { background:#f3f4f6; }
+    .lesson-nav[disabled] { opacity:.35; cursor:not-allowed; }
+    .lesson-nav.primary { background:#4f46e5; color:#fff; border-color:#4f46e5; }
+    .lesson-nav.primary:hover { background:#4338ca; }
+    .slide-counter { font-size:11px; color:#9ca3af; }
+
+    .learn-it-btn { background:#f0fdf4; color:#15803d; border:1.5px solid #86efac; border-radius:8px; padding:9px; font-size:12px; font-weight:600; cursor:pointer; transition:background .1s; width:100%; margin-top:4px; }
+    .learn-it-btn:hover { background:#dcfce7; }
+
+    .mode-badge.learn-it { background:#fce7f3; color:#9d174d; }
+
+    @keyframes slideInRight { from { opacity:0; transform:translateX(16px); } to { opacity:1; transform:translateX(0); } }
+
     /* Attention button states */
     #eale-btn.attention-absent {
       background: #dc2626;
@@ -308,6 +345,7 @@
 
   function closePanel() {
     panel.classList.remove("open");
+    panel.classList.remove("lesson-mode");
     panel.innerHTML = "";
     state = "idle";
     currentContext = null;
@@ -316,6 +354,10 @@
       _activeVideo.play().catch(() => {});
     }
     _activeVideo = null;
+    // Clean up lesson state
+    if (_lessonSlideTimer) { clearTimeout(_lessonSlideTimer); _lessonSlideTimer = null; }
+    _lessonData = null;
+    _lessonQuizQueue = [];
   }
 
   const MODE_META = {
@@ -323,6 +365,7 @@
     LLM:      { cls: "llm",      label: "AI Generated" },
     KEYWORD:  { cls: "keyword",  label: "Keyword Match" },
     RANDOM:   { cls: "random",   label: "Random" },
+    LEARN_IT: { cls: "learn-it", label: "Learn It" },
   };
 
   const VIDEO_HINT_LABEL = {
@@ -541,6 +584,15 @@
         <p style="font-size:10px;color:#9a3412;margin-top:4px;font-style:italic;">Answer this verbally to confirm your understanding.</p>
       </div>
     ` : "";
+    // If there are more LEARN_IT quiz questions queued, show "Next" instead of "Done"
+    const hasNextLesson = _lessonQuizQueue.length > 0;
+    const bottomBtns = `
+      ${!isCorrect && !hasNextLesson ? `<button class="learn-it-btn" id="eale-learn-btn">📚 Explain this to me</button>` : ""}
+      ${hasNextLesson
+        ? `<button class="submit-btn" id="eale-next-q-btn" style="margin-top:4px;">Next question →</button>`
+        : `<button class="done-btn" id="eale-done-btn">Done</button>`}
+    `;
+
     renderPanel(`
       ${header(currentContext?.topic_name || "Result", null, currentContext?.mode, currentContext?.context_hint)}
       <div class="panel-body">
@@ -551,12 +603,20 @@
           <p class="result-explanation">${escHtml(data.explanation)}</p>
           ${!isCorrect ? `<p class="correct-answer-note">Correct answer: <span>${escHtml(data.correct_answer)}</span></p>` : ""}
           ${dusLine}
+          ${proveItHtml}
         </div>
-        ${proveItHtml}
-        <button class="done-btn" id="eale-done-btn">Done</button>
+        ${bottomBtns}
       </div>
     `);
+
     panel.querySelector("#eale-done-btn")?.addEventListener("click", closePanel);
+    panel.querySelector("#eale-next-q-btn")?.addEventListener("click", () => {
+      showQuiz(_lessonQuizQueue.shift());
+    });
+    panel.querySelector("#eale-learn-btn")?.addEventListener("click", () => {
+      const q = currentContext?.question;
+      triggerLearn(q?.text, currentContext?.topic_name);
+    });
   }
 
   // ── Submit handler ─────────────────────────────────────────────────────────
@@ -969,6 +1029,135 @@
         showError(`Could not fetch question: ${err.message}`);
       }
     }
+  }
+
+  // ── Learn It ───────────────────────────────────────────────────────────────
+
+  async function triggerLearn(questionText, topicHint) {
+    if (state === "loading" || state === "submitting") return;
+    if (!isAllowed(location.href)) { showError("This page is not in your EALE allowlist."); return; }
+
+    state = "loading";
+    renderPanel(`
+      <div class="panel-header">
+        <div>
+          <div class="title">📚 EALE Learn It</div>
+          <div class="meta" style="opacity:.7">Building your lesson…</div>
+        </div>
+        <button class="close-btn" title="Close">✕</button>
+      </div>
+      <div class="spinner"><div class="spin"></div> Generating animated lesson…</div>
+    `);
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 60000);
+
+    try {
+      const res = await fetch(`${settings.backendUrl}/api/v1/extension/learn`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-API-Key": settings.studentApiKey },
+        body: JSON.stringify({
+          topic: topicHint || document.title || "",
+          page_context: getPageText(),
+          question_text: questionText || null,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      showLesson(data);
+    } catch (err) {
+      clearTimeout(timer);
+      showError(err.name === "AbortError"
+        ? "Lesson generation timed out (60s). Check backend."
+        : `Could not generate lesson: ${err.message}`);
+    }
+  }
+
+  function showLesson(lessonData) {
+    state = "lesson";
+    _lessonData = lessonData;
+    _lessonQuizQueue = (lessonData.quiz_questions || []).map((q) => ({
+      task_id: null,
+      task_type: null,
+      topic_name: lessonData.topic,
+      question: q,
+      rationale: "Quiz generated from your lesson — testing what you just learned.",
+      mode: "LEARN_IT",
+      context_hint: null,
+    }));
+    panel.classList.add("lesson-mode");
+
+    const SLIDE_EMOJIS = { concept: "💡", analogy: "🔁", example: "📝", code: "💻", summary: "⭐" };
+    const SLIDE_AUTO_MS = 12000;
+
+    function renderSlide(idx) {
+      if (_lessonSlideTimer) clearTimeout(_lessonSlideTimer);
+      const slides = lessonData.slides;
+      const slide = slides[idx];
+      const isLast = idx === slides.length - 1;
+      const pct = Math.round(((idx + 1) / slides.length) * 100);
+      const emoji = SLIDE_EMOJIS[slide.type] || "📖";
+
+      const codeHtml = slide.visual && slide.type === "code"
+        ? `<pre class="slide-code-block">${escHtml(slide.visual)}</pre>` : "";
+
+      renderPanel(`
+        <div class="panel-header" style="flex-direction:column;gap:5px;align-items:stretch;padding-bottom:8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div class="title">📚 ${escHtml(lessonData.topic)}</div>
+            <button class="close-btn" title="Close">✕</button>
+          </div>
+          <div class="lesson-progress">
+            <div class="lesson-progress-fill" style="width:${pct}%"></div>
+          </div>
+        </div>
+        <div style="padding:0 16px;">
+          <div class="lesson-slide ${slide.type}">
+            <div class="slide-type-label">${emoji} ${slide.type}</div>
+            <div class="slide-title">${escHtml(slide.title)}</div>
+            <div class="slide-body">${escHtml(slide.body)}</div>
+            ${codeHtml}
+          </div>
+        </div>
+        <div class="lesson-controls">
+          <button class="lesson-nav" id="ls-prev" ${idx === 0 ? "disabled" : ""}>← Back</button>
+          <span class="slide-counter">${idx + 1} / ${slides.length}</span>
+          ${isLast
+            ? `<button class="lesson-nav primary" id="ls-quiz">Quiz me →</button>`
+            : `<button class="lesson-nav" id="ls-next">Next →</button>`}
+        </div>
+      `);
+
+      // Auto-advance (not on last slide)
+      if (!isLast) {
+        _lessonSlideTimer = setTimeout(() => renderSlide(idx + 1), SLIDE_AUTO_MS);
+      }
+
+      panel.querySelector("#ls-prev")?.addEventListener("click", () => {
+        if (_lessonSlideTimer) clearTimeout(_lessonSlideTimer);
+        renderSlide(Math.max(0, idx - 1));
+      });
+      panel.querySelector("#ls-next")?.addEventListener("click", () => {
+        if (_lessonSlideTimer) clearTimeout(_lessonSlideTimer);
+        renderSlide(idx + 1);
+      });
+      panel.querySelector("#ls-quiz")?.addEventListener("click", () => {
+        if (_lessonSlideTimer) clearTimeout(_lessonSlideTimer);
+        panel.classList.remove("lesson-mode");
+        if (_lessonQuizQueue.length > 0) {
+          showQuiz(_lessonQuizQueue.shift());
+        } else {
+          closePanel();
+        }
+      });
+    }
+
+    renderSlide(0);
   }
 
   // ── HTML escaping ──────────────────────────────────────────────────────────

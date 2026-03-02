@@ -470,6 +470,106 @@ def submit_extension_attempt(
     )
 
 
+# ─── Learn It ─────────────────────────────────────────────────────────────────
+
+class LessonSlideOut(BaseModel):
+    type: str
+    title: str
+    body: str
+    visual: Optional[str] = None
+
+
+class ExtensionLearnRequest(BaseModel):
+    topic: str = ""
+    page_context: str = ""
+    question_text: Optional[str] = None   # the question the student just got wrong
+
+
+class ExtensionLearnOut(BaseModel):
+    topic: str
+    slides: list[LessonSlideOut]
+    quiz_questions: list[QuestionOut]
+
+
+@router.post("/learn", response_model=ExtensionLearnOut)
+def get_lesson(
+    payload: ExtensionLearnRequest,
+    x_api_key: str = Header(..., description="Student API key"),
+    db: Session = Depends(get_db),
+):
+    """
+    Generate a 5-slide animated micro-lesson + 2 quiz questions for a struggling student.
+    Slides are typed (concept / analogy / example / code / summary) and played in the
+    extension panel like a mini video. Quiz questions are saved to DB tagged LEARN_IT.
+    """
+    _get_student(x_api_key, db)   # auth only
+
+    if not (settings.USE_LLM_CONTEXT and settings.OPENAI_API_KEY):
+        raise HTTPException(
+            status_code=503,
+            detail="Learn It requires LLM mode (USE_LLM_CONTEXT=true + OPENAI_API_KEY).",
+        )
+
+    from app.services.llm_service import generate_lesson_with_quiz
+
+    lesson = generate_lesson_with_quiz(
+        topic=payload.topic or "the topic being studied",
+        page_context=payload.page_context,
+        question_text=payload.question_text,
+    )
+    if not lesson:
+        raise HTTPException(status_code=503, detail="Could not generate lesson. Try again.")
+
+    # Persist quiz questions so they can be submitted as real attempts
+    saved_questions: list[Question] = []
+    for q in lesson.quiz:
+        topic_obj = db.query(Topic).filter(Topic.name == lesson.topic).first()
+        if not topic_obj:
+            topic_obj = Topic(
+                name=lesson.topic,
+                description=f"Auto-created by EALE Learn It ({settings.OPENAI_MODEL})",
+            )
+            db.add(topic_obj)
+            db.flush()
+
+        if q.question_type == "MCQ":
+            q_type = QuestionType.MCQ
+            correct_ans = q.correct_option or ""
+            opts = q.options
+        else:
+            q_type = QuestionType.SHORT_TEXT
+            rubric = q.rubric or []
+            correct_ans = rubric[0] if rubric else q.question_text
+            opts = rubric
+
+        question = Question(
+            topic_id=topic_obj.id,
+            text=q.question_text,
+            question_type=q_type,
+            difficulty=q.difficulty,
+            correct_answer=correct_ans,
+            options=opts,
+            is_variant=False,
+            variant_template="LEARN_IT",
+        )
+        db.add(question)
+        db.flush()
+        saved_questions.append(question)
+
+    db.commit()
+    for q in saved_questions:
+        db.refresh(q)
+
+    return ExtensionLearnOut(
+        topic=lesson.topic,
+        slides=[
+            LessonSlideOut(type=s.type, title=s.title, body=s.body, visual=s.visual)
+            for s in lesson.slides
+        ],
+        quiz_questions=[QuestionOut.model_validate(q) for q in saved_questions],
+    )
+
+
 # ─── Video difficulty assessment ──────────────────────────────────────────────
 
 class VideoAssessRequest(BaseModel):
