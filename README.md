@@ -1,17 +1,17 @@
 # EALE — Evidence-Aligned Learning Engine
 
-> A Chrome Extension + backend system that embeds **durable-learning assessment** directly into the browser — quizzing students on content they're actively reading or watching, generating Sora AI video lessons, detecting AI-dependency, and giving faculty real-time cohort insights.
+> A Chrome Extension + full-stack system that embeds **durable-learning assessment** directly into the browser — quizzing students contextually, generating AI video lessons, detecting AI-dependency, and giving faculty real-time cohort insights with personalised learning roadmaps.
 
 ---
 
 ## The Problem
 
-Modern students can answer questions correctly in the moment — by copying answers, using AI tools, or memorising surface patterns — while retaining nothing a week later. Standard LMS quizzes cannot distinguish **genuine understanding** from **surface compliance**.
+Students can score well on quizzes by copying answers, using AI tools, or memorising surface patterns — while retaining nothing a week later. Standard LMS quizzes cannot distinguish **genuine understanding** from **surface compliance**.
 
 EALE solves this with three layers:
 
 1. **The DUS metric** — a formula that measures learning durability, not just accuracy
-2. **The Chrome Extension** — embeds micro-quizzes in whatever the student is already doing (reading a paper, watching a lecture video)
+2. **The Chrome Extension** — embeds micro-quizzes in whatever the student is already doing
 3. **Anti-cheating signals** — paste detection, AI-dependency fingerprint, and "Prove It" follow-up questions
 
 ---
@@ -25,7 +25,7 @@ EALE solves this with three layers:
 │  YOLOv8 attention monitor · paste detection · Prove It UI       │
 │  Learn It: Sora AI video + TTS narration                        │
 └──────────────┬──────────────────────────────┬───────────────────┘
-               │ REST (X-API-Key)              │ REST (X-API-Key)
+               │ REST (X-API-Key)              │ REST
                ▼                              ▼
 ┌──────────────────────────┐    ┌───────────────────────────────┐
 │  FastAPI Backend          │    │  CompVis Service (port 8001)  │
@@ -41,6 +41,7 @@ EALE solves this with three layers:
 │  Next.js 14 Frontend     │
 │  port 3000               │
 │  Student + Faculty views │
+│  Roadmap tab (GPT-4o)    │
 └──────────────────────────┘
 ```
 
@@ -85,35 +86,47 @@ AI_Dependency = (0.45 × retention_collapse + 0.45 × transfer_gap + 0.10 × cal
 
 ### Learn It — Sora AI Video Lessons
 - Click **📚** in the extension overlay on any page or YouTube video
-- Backend calls GPT-4o to write a cinematic Sora video prompt, then calls Sora (`sora` model, 1280×720, 8s) to generate an actual MP4 video
-- OpenAI TTS-1-HD narration audio plays alongside the video in perfect sync
-- If Sora is unavailable (account not yet enabled), falls back silently to a GPT-4o canvas animation
-- Fullscreen button: native video fullscreen for Sora MP4; blob tab for HTML animation
-- YouTube enrichment: if the current page is a YouTube video, the backend fetches the real transcript and uses it to make the lesson directly relevant to what's playing
+- Backend calls GPT-4o to write a cinematic Sora video prompt, then calls Sora (`sora` model, 1280×720) to generate an MP4 video
+- OpenAI TTS-1-HD narration audio plays alongside the video
+- Falls back to a GPT-4o canvas animation if Sora is unavailable
+- YouTube enrichment: backend fetches the real transcript and makes the lesson relevant to what's playing
 - After watching: 2 GPT-4o quiz questions test understanding of the lesson
 
+### Learning Roadmap (GPT-4o powered)
+- Student dashboard has an **Overview** tab and a **Roadmap** tab
+- Roadmap groups topics into 3 tiers: 🔴 Focus Now · 🟡 Reinforce · 🟢 Mastered (based on DUS)
+- Clicking any topic card opens a GPT-4o generated modal with:
+  - **Diagnosis** — why they're struggling (based on weak metric pattern)
+  - **Key concepts** to focus on
+  - **Step-by-step study plan** with time estimates
+  - **Curated resources** with real links (YouTube, Wikipedia, LeetCode, Khan Academy, CS50, etc.)
+  - **Estimated weeks** to reach DUS 80
+
 ### Chrome Extension
-- **GPT-4o page reader** — captures tab screenshot + visible text → generates a transfer-style question contextually relevant to what the student is studying
-- **YouTube transcript enrichment** — fetches actual spoken captions for YouTube videos and uses them as context for question generation
-- **Video quiz engine** — auto-pauses on rewind (>5s), manual pause, and dense-concept detection (GPT-4o assesses video frame every 3 min); resumes video after quiz
-- **Attention monitoring** — YOLOv8 webcam feed via CompVis service; EALE button flashes red after 20s face absence during video; triggers quiz on attention return; triggers quiz after 60s absence while reading
-- **Handwritten answer OCR** — photo upload for open-ended questions; GPT-4o reads and grades the handwriting in one vision call
-- **Paste detection** — tracks paste events on the answer input; sends `answer_pasted: true` to backend
-- **"Prove It" follow-up** — when paste detected, GPT-4o generates a contextual follow-up the student must explain to prove real comprehension
-- **Shadow DOM isolation** — quiz overlay fully encapsulated; keyboard events blocked from leaking to YouTube/Khan Academy player
-- **No repeat questions** — extension only shows LLM-generated or keyword-matched questions, never spaced-repetition retests (those live only in the student dashboard)
+- **GPT-4o page reader** — captures tab screenshot + visible text → generates a transfer-style question contextually relevant to the student's current content
+- **YouTube transcript enrichment** — fetches actual spoken captions for YouTube videos and uses them as question context
+- **Video quiz engine** — auto-pauses on rewind (>5s), manual pause, and dense-concept detection (GPT-4o assesses video frame every 3 min)
+- **Attention monitoring** — YOLOv8 webcam feed; EALE button flashes red after 20s face absence; triggers quiz on attention return
+- **Handwritten answer OCR** — photo upload for open-ended questions; GPT-4o reads and grades in one vision call
+- **Paste detection + "Prove It"** — detects copy-paste; GPT-4o generates a follow-up to verify real comprehension
+- **Shadow DOM isolation** — quiz overlay fully encapsulated; no keyboard event leakage to YouTube/Khan Academy
 
-### Backend
-- **Spaced repetition scheduler** — APScheduler creates RETEST tasks (24h) and TRANSFER tasks (72h) after each incorrect or low-confidence attempt
-- **LLM question generation** — OpenAI generates questions from page context with TTL cache; per-student 60s rate limit (bypassed for video triggers)
-- **LLM grading** — rubric-based grading for short-text answers; vision grading for handwritten uploads
-- **Video difficulty assessment** — silent GPT-4o call every 3 min while video plays; only interrupts when score ≥ 4/5
+### Dashboards
+- **Student dashboard** — DUS hero, 4 metric cards, per-topic breakdown table, Roadmap tab
+- **Faculty dashboard** — cohort aggregates, risk cards (Low Retention, Transfer Failures, Overconfidence, AI Dependency), DUS histogram, per-student links
+- **Role-based auth** — students see only their own dashboard; faculty can view any student
 
-### Faculty Dashboard
-- Per-topic: avg mastery, retention, transfer, calibration, DUS, overconfidence gap
-- Risk cards: Low Retention · Transfer Failures · Overconfidence Hotspots · **AI Dependency Risk**
-- Per-student AI-dependency flag when cheating fingerprint detected
-- DUS distribution histogram across cohort
+---
+
+## ⚠️ API Key Required
+
+You must supply your own OpenAI API key to enable LLM features (question generation, grading, video lessons, roadmaps). The system works without a key but falls back to deterministic keyword-based questions.
+
+Set it in `docker-compose.yml` before starting:
+
+```yaml
+OPENAI_API_KEY: "sk-..."   # ← paste your own key here, never commit it
+```
 
 ---
 
@@ -122,12 +135,17 @@ AI_Dependency = (0.45 × retention_collapse + 0.45 × transfer_gap + 0.10 × cal
 ### Prerequisites
 - Docker + Docker Compose
 - Chrome browser
-- Python 3 (for icon generation script)
-- OpenAI API key (required for LLM + Sora features; full deterministic fallback without it)
+- Python 3 (for extension icon generation — one command)
+- OpenAI API key (your own — see above)
 
-### Step 1 — Add your OpenAI API key
+### Step 1 — Clone and add your API key
 
-Open `docker-compose.yml` and set `OPENAI_API_KEY` under the `backend` service environment:
+```bash
+git clone https://github.com/DhairyaKakkar/DLHackathon.git
+cd DLHackathon
+```
+
+Open `docker-compose.yml` and set your key under the `backend` service:
 
 ```yaml
 environment:
@@ -137,18 +155,16 @@ environment:
   USE_LLM_GRADING: "true"
 ```
 
-> **Important:** Never commit the key. The file has `OPENAI_API_KEY: ""` in git — fill it locally only.
-
 ### Step 2 — Start all Docker services
 
 ```bash
 # First time (or after requirements.txt changes):
 docker compose up --build -d
 
-# Subsequent starts (no code changes):
+# Subsequent starts:
 docker compose up -d
 
-# Watch backend logs:
+# Watch logs:
 docker compose logs -f backend
 ```
 
@@ -166,51 +182,40 @@ Wait for: `INFO:     Application startup complete.`
 ```bash
 cd chrome-extension
 python3 generate_icons.py   # generates icons/icon16.png, icon48.png, icon128.png
+cd ..
 ```
 
 1. Open Chrome → `chrome://extensions`
 2. Enable **Developer mode** (top-right toggle)
 3. Click **Load unpacked** → select the `chrome-extension/` folder
-4. Click the **EALE** extension icon in the toolbar → **Options**
+4. Click the EALE icon → **Options**
 5. Set **Student API Key** to `student-alice-key`
 6. Set **Backend URL** to `http://localhost:8000`
 7. Save
 
-> After any change to `content.js` or `manifest.json`, go to `chrome://extensions` and click the reload button on the EALE card.
-
 ### Step 4 — Enable YOLOv8 Attention Monitoring
 
-The attention monitor needs the CompVis service running (it's part of `docker compose up`) and the correct model loaded:
-
 ```bash
-# Switch CompVis to YOLOv8 detection mode (run once after docker compose up):
 curl -X POST http://localhost:8001/switch-model \
   -H "Content-Type: application/json" \
   -d '{"model_name": "yolov8n", "config_overrides": {"task": "detection"}}'
 ```
 
-Expected response: `{"model": "yolov8n", "task": "detection", ...}`
+### Step 5 — Sign in to the Dashboard
 
-The EALE button in the extension will show a **camera icon** and turn **red** when no face is detected for 20s.
+Go to **http://localhost:3000** and sign in with one of the demo accounts:
 
-### Step 5 — View Dashboards
-
-- Student (Alice — fragile mastery): http://localhost:3000/student/1
-- Student (Bob — overconfident): http://localhost:3000/student/2
-- Faculty cohort view: http://localhost:3000/faculty
+| User | API Key | Role | Pattern |
+|------|---------|------|---------|
+| Alice Chen | `student-alice-key` | Student | High mastery, low transfer (surface memorisation) |
+| Bob Martinez | `student-bob-key` | Student | Severely overconfident (high confidence, low accuracy) |
+| Dana Faculty | `faculty-dana-key` | Faculty | Cohort view + all student dashboards |
 
 ### Step 6 — Test the Extension
 
-**Basic quiz flow:**
-Open `testbench/fake-lms.html` in Chrome — it contains Algorithms content that triggers keyword matching. Click the **EALE Check** button.
+Open `testbench/fake-lms.html` in Chrome — it has Algorithms content that triggers keyword matching. Click the **EALE Check** button in the bottom-right corner.
 
-**Video quiz flow:**
-Open any YouTube video and rewind more than 5 seconds — the extension auto-pauses and shows a GPT-4o question generated from the video's actual transcript.
-
-**Learn It (Sora video lesson):**
-Click the **📚** button in the overlay on any page. The backend generates a Sora video + TTS narration (~60–90s). After watching, click **Quiz me →**.
-
-Full grader walkthrough: **`testbench/SETUP.md`**
+Full step-by-step grader walkthrough: **`testbench/SETUP.md`**
 
 ---
 
@@ -226,18 +231,15 @@ docker compose down -v       # also wipe the postgres data volume
 ## Restarting After Changes
 
 ```bash
-# After editing backend Python files (hot-reload is on, so usually automatic):
-# No action needed — uvicorn --reload picks up changes
-
 # After editing docker-compose.yml environment variables:
-docker compose up -d backend     # recreates the container with new env vars
+docker compose up -d backend     # recreates container with new env vars
 # ⚠️  docker compose restart does NOT re-read env vars — always use up -d
 
-# After editing requirements.txt (adding/upgrading packages):
+# After editing requirements.txt:
 docker compose up --build -d backend
 
 # After editing chrome-extension/content.js or manifest.json:
-# Go to chrome://extensions → click Reload on EALE
+# chrome://extensions → click Reload on EALE
 ```
 
 ---
@@ -264,29 +266,15 @@ curl -X POST http://localhost:8000/api/v1/admin/reset
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DATABASE_URL` | `postgresql://eale:eale_secret@db:5432/eale` | Postgres DSN |
-| `OPENAI_API_KEY` | `` | OpenAI key — required for LLM + Sora features |
-| `OPENAI_MODEL` | `gpt-4o` | Model for question gen, grading, video assessment |
+| `OPENAI_API_KEY` | `` | **Your own OpenAI key** — required for LLM + Sora features |
+| `OPENAI_MODEL` | `gpt-4o` | Model for question gen, grading, roadmaps, video assessment |
 | `USE_LLM_CONTEXT` | `false` | Enable LLM question generation + Learn It |
 | `USE_LLM_GRADING` | `false` | Enable LLM grading + Prove It |
+| `DATABASE_URL` | `postgresql://eale:eale_secret@db:5432/eale` | Postgres DSN |
 | `LLM_CACHE_TTL_SECONDS` | `600` | Question cache TTL (seconds) |
 | `AUTO_SEED` | `true` | Seed demo data on startup |
 | `CORS_ORIGINS` | `*` | Allowed CORS origins |
 | `SCHEDULER_INTERVAL_SECONDS` | `60` | Spaced-rep scheduler interval |
-
----
-
-## Demo Seed Data
-
-Auto-seeded on first boot — no manual setup needed:
-
-| User | API Key | Pattern |
-|------|---------|---------|
-| Alice Chen | `student-alice-key` | High mastery, low transfer (memorises surface form) |
-| Bob Martinez | `student-bob-key` | Severely overconfident (high confidence, low accuracy) |
-| Dana Faculty | `faculty-dana-key` | Faculty role |
-
-3 Topics · 14 Questions (8 original + 6 variants) · 30+ Attempts with realistic timestamps demonstrating all metric patterns
 
 ---
 
@@ -302,26 +290,32 @@ DLHackathon/
 │   │   ├── config.py                  # Pydantic-settings env config
 │   │   ├── routers/
 │   │   │   ├── extension.py           # Chrome extension endpoints
-│   │   │   └── metrics.py             # Dashboard endpoints
+│   │   │   ├── metrics.py             # Dashboard + roadmap endpoints
+│   │   │   └── auth.py                # API key validation
 │   │   └── services/
 │   │       ├── metrics_service.py     # DUS + AI-dependency formula
-│   │       ├── llm_service.py         # OpenAI: gen, grade, vision, Sora, TTS
+│   │       ├── llm_service.py         # OpenAI: gen, grade, vision, Sora, TTS, roadmap
 │   │       ├── youtube_service.py     # YouTube transcript fetching
 │   │       ├── scheduler_service.py   # Spaced repetition scheduler
 │   │       └── seed.py                # Demo data
 │   ├── requirements.txt
-│   └── tests/
+│   └── tests/                         # 22 unit tests (in-memory SQLite)
 ├── chrome-extension/
 │   ├── manifest.json                  # MV3 manifest
-│   ├── content.js                     # Shadow DOM overlay + all quiz + Learn It logic
+│   ├── content.js                     # Shadow DOM overlay + quiz + Learn It logic
 │   ├── background.js                  # Screenshot capture, settings defaults
 │   ├── options.html / options.js      # Extension settings page
 │   └── popup.html / popup.js         # Extension popup
 ├── CompVis/                           # YOLOv8n inference service (Docker, port 8001)
 ├── frontend/
-│   └── src/app/
-│       ├── student/[id]/              # Student dashboard
-│       └── faculty/                   # Faculty cohort dashboard
+│   └── src/
+│       ├── app/
+│       │   ├── login/                 # Auth page (API key sign-in)
+│       │   ├── student/[id]/          # Student dashboard (Overview + Roadmap tabs)
+│       │   └── faculty/               # Faculty cohort dashboard
+│       └── components/
+│           ├── LearningPath.tsx       # Roadmap tier view
+│           └── TopicRoadmapModal.tsx  # GPT-4o roadmap modal
 ├── testbench/
 │   ├── SETUP.md                       # Step-by-step grader guide
 │   ├── fake-lms.html                  # Simulated LMS page for testing
@@ -339,7 +333,7 @@ DLHackathon/
 | Backend | Python 3.11, FastAPI, SQLAlchemy (sync), psycopg2, APScheduler |
 | Database | PostgreSQL 15 |
 | AI / Video | OpenAI GPT-4o (text + vision), Sora (video generation), TTS-1-HD (narration), YOLOv8n |
-| Transcripts | youtube-transcript-api (no API key needed) |
+| Transcripts | youtube-transcript-api (no extra API key needed) |
 | Frontend | Next.js 14 App Router, TypeScript, Tailwind CSS, TanStack Query, Recharts |
 | Extension | Chrome MV3, Shadow DOM, chrome.storage.sync |
 | Config | Pydantic v2 + pydantic-settings |
