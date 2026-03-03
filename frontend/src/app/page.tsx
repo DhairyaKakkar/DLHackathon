@@ -68,14 +68,23 @@ export default function LandingPage() {
 
       {/* Navbar */}
       <nav className="bg-[#09090f]/80 backdrop-blur-xl border-b border-white/[0.06] sticky top-0 z-20">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
-            <BrainCircuit className="w-3.5 h-3.5 text-white" />
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-md bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
+              <BrainCircuit className="w-3.5 h-3.5 text-white" />
+            </div>
+            <span className="font-bold text-sm text-white">EALE</span>
+            <span className="hidden sm:block text-xs text-slate-600 ml-1">
+              Evidence-Aligned Learning Engine
+            </span>
           </div>
-          <span className="font-bold text-sm text-white">EALE</span>
-          <span className="hidden sm:block text-xs text-slate-600 ml-1">
-            Evidence-Aligned Learning Engine
-          </span>
+          <Link
+            href="/login"
+            className="flex items-center gap-1.5 bg-indigo-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            Sign In
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
       </nav>
 

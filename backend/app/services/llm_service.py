@@ -509,6 +509,159 @@ def generate_prove_it_question(
         return None
 
 
+# ─── Topic Roadmap ────────────────────────────────────────────────────────────
+
+class LLMResource(BaseModel):
+    title: str
+    url: str
+    type: Literal["video", "article", "practice", "course", "documentation"]
+    description: str
+
+    @field_validator("title", "url", "description")
+    @classmethod
+    def not_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("must not be empty")
+        return v.strip()
+
+
+class LLMStudyStep(BaseModel):
+    number: int
+    title: str
+    description: str
+    duration: str   # e.g. "2–3 days"
+
+    @field_validator("title", "description", "duration")
+    @classmethod
+    def not_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("must not be empty")
+        return v.strip()
+
+
+class LLMTopicRoadmap(BaseModel):
+    diagnosis: str          # 2-3 sentences: why they're struggling (based on metric pattern)
+    steps: list[LLMStudyStep]   # 3-5 ordered study steps
+    resources: list[LLMResource]  # 4-6 real resources with working URLs
+    concepts: list[str]     # 4-8 key concepts to focus on
+    estimated_weeks: int    # to reach DUS ≥ 80
+
+    @field_validator("steps")
+    @classmethod
+    def need_steps(cls, v: list) -> list:
+        if len(v) < 2:
+            raise ValueError("need at least 2 steps")
+        return v[:6]
+
+    @field_validator("resources")
+    @classmethod
+    def need_resources(cls, v: list) -> list:
+        if not v:
+            raise ValueError("need at least 1 resource")
+        return v[:8]
+
+    @field_validator("concepts")
+    @classmethod
+    def need_concepts(cls, v: list) -> list:
+        if not v:
+            raise ValueError("need at least 1 concept")
+        return v[:10]
+
+
+_ROADMAP_SYSTEM = """\
+You are an expert learning coach. A student's EALE metrics for a specific topic are given.
+Generate a personalised improvement roadmap as a JSON object.
+
+EALE metric meanings:
+- Mastery (0-100): recent accuracy on original questions
+- Retention (0-100): accuracy across time gaps (spaced recall)
+- Transfer (0-100): accuracy on rephrased/variant questions (generalisation)
+- Calibration (0-100): confidence-accuracy alignment (100 = perfectly calibrated)
+- DUS (0-100): weighted composite: 0.30*M + 0.30*R + 0.25*T + 0.15*C
+
+Diagnose based on the weakest metric(s) — be specific (e.g. low retention = forgetting curve issue, low transfer = surface memorisation, low calibration = overconfidence).
+
+For resources, provide REAL urls that work — prefer:
+- YouTube: https://www.youtube.com/results?search_query=<topic+keyword> (always valid)
+- Wikipedia: https://en.wikipedia.org/wiki/<Topic>
+- GeeksforGeeks, Khan Academy, Coursera, MIT OpenCourseWare, LeetCode, CS50, Brilliant.org
+- Use actual known page URLs when confident, YouTube search URLs otherwise
+
+Return ONLY valid JSON (no markdown, no fences):
+{
+  "diagnosis": "<2-3 sentences explaining why they're struggling based on the specific weak metrics>",
+  "steps": [
+    {"number": 1, "title": "<action title>", "description": "<what to do and why>", "duration": "<e.g. 2-3 days>"},
+    ...
+  ],
+  "resources": [
+    {"title": "<resource name>", "url": "<real url>", "type": "video|article|practice|course|documentation", "description": "<one sentence: what this teaches>"},
+    ...
+  ],
+  "concepts": ["<concept 1>", "<concept 2>", ...],
+  "estimated_weeks": <integer 1-8>
+}
+
+Rules:
+- steps: 3-5 items, ordered from immediate to long-term
+- resources: 4-6 items, mix of types (at least 1 video, 1 practice)
+- concepts: 4-8 specific sub-concepts the student should master
+- estimated_weeks: realistic estimate to reach DUS 80 given current scores
+- Tailor EVERYTHING to the specific topic name and weak metric pattern
+"""
+
+
+def generate_topic_roadmap(
+    topic_name: str,
+    mastery: float,
+    retention: float,
+    transfer: float,
+    calibration: float,
+    dus: float,
+) -> Optional[LLMTopicRoadmap]:
+    """
+    Call GPT-4o to generate a personalised improvement roadmap for one topic.
+    Returns None on any failure.
+    """
+    if not settings.OPENAI_API_KEY:
+        return None
+
+    user_msg = (
+        f"Topic: {topic_name}\n\n"
+        f"Student metrics:\n"
+        f"  Mastery:     {mastery:.1f}/100\n"
+        f"  Retention:   {retention:.1f}/100\n"
+        f"  Transfer:    {transfer:.1f}/100\n"
+        f"  Calibration: {calibration:.1f}/100\n"
+        f"  DUS:         {dus:.1f}/100\n\n"
+        "Generate a personalised improvement roadmap for this student."
+    )
+
+    try:
+        client = _openai_client()
+        resp = client.chat.completions.create(
+            model="gpt-4o",          # always use gpt-4o for roadmap quality
+            messages=[
+                {"role": "system", "content": _ROADMAP_SYSTEM},
+                {"role": "user",   "content": user_msg},
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=1200,
+            temperature=0.5,
+        )
+        raw = resp.choices[0].message.content
+        result = LLMTopicRoadmap.model_validate_json(raw)
+        logger.info("[LLM] Roadmap generated for topic=%r dus=%.1f", topic_name, dus)
+        return result
+
+    except ValidationError as exc:
+        logger.warning("[LLM] Roadmap schema invalid: %s", exc)
+        return None
+    except Exception as exc:
+        logger.warning("[LLM] Roadmap generation failed (%s): %s", type(exc).__name__, exc)
+        return None
+
+
 # ─── Learn It — Animated Video Lesson ────────────────────────────────────────
 
 class LLMVideoLesson(BaseModel):
@@ -519,6 +672,7 @@ class LLMVideoLesson(BaseModel):
     quiz: list[LLMLessonQuiz]
     video_b64: str = ""  # Sora-generated MP4, base64-encoded (empty if HTML fallback)
     video_type: str = "html_animation"  # "sora_mp4" | "html_animation"
+    scenes: list["LLMVideoScene"] = []
 
     @field_validator("quiz")
     @classmethod
@@ -528,29 +682,148 @@ class LLMVideoLesson(BaseModel):
         return v[:2]
 
 
-_SORA_PROMPT_SYSTEM = """\
-You are a world-class educational video director creating a prompt for Sora (OpenAI's video AI).
-Write a vivid, cinematic 8-second educational video prompt that will produce a stunning animated
-visualization for the given topic.
+class LLMLessonScenePlan(BaseModel):
+    title: str
+    caption: str
+    narration: str
+    visual_goal: str
+    animation_beats: list[str]
+    duration_seconds: int = 8
 
-Your prompt must describe:
-- A smooth, flowing animation that makes the concept visually click
-- Specific visual elements: animated diagrams, graphs, particles, geometric shapes, equations
-- Cinematic quality: soft lens, gentle camera movements (slow zoom or pan), professional lighting
-- Color palette: deep dark background (#050d1a or deep space black), vivid neon-like educational
-  colors (electric blue, bright orange, glowing green, soft white text)
-- Style: 3Blue1Brown / Grant Sanderson mathematical animation meets Pixar-level production
+    @field_validator("title", "caption", "narration", "visual_goal")
+    @classmethod
+    def not_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("must not be empty")
+        return v.strip()
 
-Great prompt examples:
-- "Smooth cinematic animation of binary search: glowing blue array boxes, golden pointer arrow
-  sweeps to middle element, eliminated halves dissolve to dark grey, active region gently zooms in,
-  iteration counter increments, deep space background, professional educational visualization"
-- "A glowing sphere traces a perfect parabolic arc against a dark starfield, real-time velocity
-  vector arrows animate showing Vx (horizontal, constant) and Vy (vertical, shrinking then flipping),
-  golden trajectory trail fades behind it, cinematic slow-motion at apex, physics labels appear
-  with smooth fade-in, 3Blue1Brown style"
+    @field_validator("animation_beats")
+    @classmethod
+    def valid_beats(cls, v: list[str]) -> list[str]:
+        cleaned = [item.strip() for item in v if item and item.strip()]
+        if len(cleaned) < 2:
+            raise ValueError("need at least 2 animation beats")
+        return cleaned[:4]
 
-Return ONLY the Sora video prompt. No JSON. No preamble. Max 200 words.
+    @field_validator("duration_seconds")
+    @classmethod
+    def clamp_duration(cls, v: int) -> int:
+        return max(6, min(10, int(v)))
+
+
+class LLMStoryboard(BaseModel):
+    topic: str
+    style_bible: str
+    scenes: list[LLMLessonScenePlan]
+    quiz: list[LLMLessonQuiz]
+
+    @field_validator("topic", "style_bible")
+    @classmethod
+    def not_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("must not be empty")
+        return v.strip()
+
+    @field_validator("scenes")
+    @classmethod
+    def need_scenes(cls, v: list[LLMLessonScenePlan]) -> list[LLMLessonScenePlan]:
+        if len(v) < 3:
+            raise ValueError("need at least 3 scenes")
+        return v[:4]
+
+    @field_validator("quiz")
+    @classmethod
+    def need_quiz(cls, v: list[LLMLessonQuiz]) -> list[LLMLessonQuiz]:
+        if not v:
+            raise ValueError("need at least 1 quiz question")
+        return v[:2]
+
+
+class LLMVideoScene(BaseModel):
+    title: str
+    caption: str
+    narration: str
+    audio_b64: str = ""
+    video_b64: str = ""
+    duration_seconds: int = 8
+
+    @field_validator("title", "caption", "narration")
+    @classmethod
+    def not_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("must not be empty")
+        return v.strip()
+
+
+LLMVideoLesson.model_rebuild()
+
+
+_LESSON_STORYBOARD_SYSTEM = """\
+You are a world-class instructional director and curriculum designer.
+Plan a premium micro-lesson that will later be rendered as multiple short Sora clips.
+
+Return ONLY a valid JSON object with this exact shape:
+{
+  "topic": "<specific topic name, 2-5 words>",
+  "style_bible": "<one short paragraph describing the shared visual language across all scenes>",
+  "scenes": [
+    {
+      "title": "<2-4 words>",
+      "caption": "<one sentence shown under the video>",
+      "narration": "<spoken voiceover for this scene only>",
+      "visual_goal": "<what the animation must visually make obvious>",
+      "animation_beats": ["<beat 1>", "<beat 2>", "<beat 3>"],
+      "duration_seconds": 8
+    }
+  ],
+  "quiz": [
+    {
+      "question_type": "MCQ",
+      "question_text": "<question testing understanding of the lesson>",
+      "options": ["option A", "option B", "option C", "option D"],
+      "correct_option": "<exact option text>",
+      "rubric": null,
+      "difficulty": 2
+    },
+    {
+      "question_type": "SHORT_TEXT",
+      "question_text": "<open-ended question requiring explanation in own words>",
+      "options": null,
+      "correct_option": null,
+      "rubric": ["<criterion 1>", "<criterion 2>"],
+      "difficulty": 3
+    }
+  ]
+}
+
+Rules:
+- Create exactly 4 scenes.
+- The scenes must progress in this order: intuition, mechanism, worked example, takeaway.
+- Every scene must teach a different sub-idea. No repeated visuals. No recycled animations.
+- narration must sound natural when spoken aloud and fit comfortably inside one short scene.
+- narration should usually be 16-30 words per scene, 1-2 short sentences max.
+- visual_goal must be concrete and visual, not abstract.
+- animation_beats must describe motion, not static objects.
+- style_bible should keep continuity across scenes but still allow each scene to look distinct.
+- quiz questions must test understanding, not surface recall.
+"""
+
+_SORA_SCENE_PROMPT_SYSTEM = """\
+You write elite Sora prompts for educational animations.
+Turn the provided lesson scene into ONE polished prompt for a single cinematic clip.
+
+Hard requirements:
+- The clip must feel purposeful from beginning to end, not like a looping wallpaper.
+- It must have a clear visual arc: opening state -> transformation -> resolved end frame.
+- Absolutely avoid generic repeated motions, duplicated mini-animations, or meaningless particles.
+- No talking heads, no classroom footage, no stock-video feel, no slideshow, no text-heavy screen.
+- Use diagrams, geometry, motion, highlighting, labels, and camera movement only when they teach.
+- Keep visual continuity with the shared style bible, but make this scene visually distinct from prior scenes.
+- Make the central concept obvious even with audio muted.
+- Mention exact motion, spatial layout, color accents, and what changes over time.
+- End on a stable, elegant frame rather than resetting.
+
+Return ONLY the final Sora prompt text. No JSON. No markdown.
 """
 
 _VIDEO_LESSON_HTML_SYSTEM = """\
@@ -631,86 +904,138 @@ Progress bar: 3px, gradient from accent[0] to accent[3]
 RETURN ONLY THE RAW HTML. No markdown fences, no explanation, no commentary.
 """
 
-_NARRATION_QUIZ_SYSTEM = """\
-You are an expert educator. Return ONLY a valid JSON object (no markdown):
-{
-  "topic": "<specific topic name, 2-5 words>",
-  "narration": "<spoken narration script for a 72-second animated lesson — 4 paragraphs of ~2 sentences each, one per scene. Natural, engaging voice as if speaking to a student>",
-  "quiz": [
-    {
-      "question_type": "MCQ",
-      "question_text": "<question testing understanding of a specific concept from this topic>",
-      "options": ["option A", "option B", "option C", "option D"],
-      "correct_option": "<exact string from options>",
-      "rubric": null,
-      "difficulty": 2
-    },
-    {
-      "question_type": "SHORT_TEXT",
-      "question_text": "<open-ended question requiring explanation in own words>",
-      "options": null,
-      "correct_option": null,
-      "rubric": ["<key criterion 1>", "<key criterion 2>"],
-      "difficulty": 3
-    }
-  ]
-}
+_TRANSCRIPT_SUMMARY_SYSTEM = """\
+You are preparing source material for a premium educational explainer video.
+Compress the transcript/context into a dense but clean teaching brief.
+
+Return ONLY plain text in this format:
+Topic:
+<one line>
+
+Core ideas:
+- ...
+- ...
+
+Key sequence:
+1. ...
+2. ...
+3. ...
+
+Important examples:
+- ...
+- ...
+
+Misconceptions to correct:
+- ...
+- ...
+
+Visual opportunities:
+- ...
+- ...
+
 Rules:
-- narration should flow naturally when read aloud; ~130-160 words total
-- quiz questions must test understanding, not recall
-- MCQ must have exactly 4 options with one correct_option matching exactly
+- Prioritize what would make a great short explainer lesson.
+- Remove filler, greetings, sponsor content, repetition, and digressions.
+- Keep concrete terminology, equations, and examples if they matter.
+- Make the result compact but information-dense.
 """
 
+_TECHNICAL_LESSON_CLASSIFIER_SYSTEM = """\
+You are deciding whether a topic is better taught by deterministic diagrams/animation than by a generative cinematic video clip.
+Return ONLY JSON: {"prefer_html_animation": true|false, "reason": "<short reason>"}.
 
-def _try_sora_video(client, user_context: str) -> Optional[str]:
+Prefer HTML animation when the content is technical, structured, diagram-heavy, algorithmic, mathematical, code-centric, or stepwise.
+Prefer Sora only when the concept is mainly visual, physical, intuitive, narrative, or metaphor-friendly.
+"""
+
+def _generate_storyboard(client, user_context: str) -> LLMStoryboard:
+    import json as _json
+
+    resp = client.chat.completions.create(
+        model=settings.OPENAI_MODEL,
+        messages=[
+            {"role": "system", "content": _LESSON_STORYBOARD_SYSTEM},
+            {"role": "user", "content": user_context},
+        ],
+        response_format={"type": "json_object"},
+        max_tokens=1400,
+        temperature=0.45,
+    )
+    raw = _json.loads(resp.choices[0].message.content)
+    return LLMStoryboard.model_validate(raw)
+
+
+def _write_sora_scene_prompt(
+    client,
+    topic: str,
+    style_bible: str,
+    scene: LLMLessonScenePlan,
+    scene_index: int,
+    scene_count: int,
+) -> str:
+    previous = "None" if scene_index == 0 else f"Previous scenes already covered scenes 1-{scene_index}."
+    user_context = (
+        f"Topic: {topic}\n"
+        f"Scene number: {scene_index + 1} of {scene_count}\n"
+        f"Shared style bible: {style_bible}\n"
+        f"Scene title: {scene.title}\n"
+        f"Caption: {scene.caption}\n"
+        f"Narration: {scene.narration}\n"
+        f"Visual goal: {scene.visual_goal}\n"
+        f"Animation beats:\n- " + "\n- ".join(scene.animation_beats) + "\n"
+        f"Context: {previous}\n"
+        "Write the exact prompt for this scene."
+    )
+    resp = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": _SORA_SCENE_PROMPT_SYSTEM},
+            {"role": "user", "content": user_context},
+        ],
+        max_tokens=320,
+        temperature=0.55,
+    )
+    return resp.choices[0].message.content.strip()
+
+
+def _try_sora_video(client, prompt: str, clip_label: str) -> Optional[str]:
     """
-    Try to generate a Sora video. Returns base64-encoded MP4 bytes, or None on any failure.
-    Polls up to 150 seconds; falls back silently if Sora is unavailable or times out.
+    Try to generate a Sora video clip. Returns base64-encoded MP4 bytes, or None on any failure.
+    Polls up to 240 seconds; falls back silently if Sora is unavailable or times out.
     """
     import base64
     import time as _time
 
-    # GPT-4o writes a cinematic Sora prompt
-    prompt_resp = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": _SORA_PROMPT_SYSTEM},
-            {"role": "user",   "content": user_context},
-        ],
-        max_tokens=300,
-        temperature=0.6,
-    )
-    sora_prompt = prompt_resp.choices[0].message.content.strip()
-    logger.info("[Sora] Prompt: %.120s…", sora_prompt)
+    logger.info("[Sora] %s prompt: %.160s…", clip_label, prompt)
 
     # Create video generation job
     generation = client.video.generations.create(
         model="sora",
-        prompt=sora_prompt,
+        prompt=prompt,
         size="1280x720",
         n=1,
     )
     gen_id = generation.id
-    logger.info("[Sora] Job created: id=%s status=%s", gen_id, generation.status)
+    logger.info("[Sora] %s job created: id=%s status=%s", clip_label, gen_id, generation.status)
 
     # Poll until completed / failed / timed out
-    deadline = _time.monotonic() + 150
+    deadline = _time.monotonic() + 240
     while generation.status not in ("completed", "failed", "cancelled"):
         if _time.monotonic() > deadline:
-            logger.warning("[Sora] Timed out waiting for job %s", gen_id)
+            logger.warning("[Sora] %s timed out waiting for job %s", clip_label, gen_id)
             return None
         _time.sleep(6)
         generation = client.video.generations.retrieve(gen_id)
-        logger.info("[Sora] Polling id=%s status=%s", gen_id, generation.status)
+        logger.info("[Sora] %s polling id=%s status=%s", clip_label, gen_id, generation.status)
 
     if generation.status != "completed":
-        logger.warning("[Sora] Job %s finished with status: %s", gen_id, generation.status)
+        logger.warning("[Sora] %s job %s finished with status: %s", clip_label, gen_id, generation.status)
         return None
 
     # Download MP4 content
     content_resp = client.video.generations.content.retrieve(gen_id)
     video_bytes = content_resp.content  # raw bytes
-    logger.info("[Sora] Downloaded %d bytes for job %s", len(video_bytes), gen_id)
+    logger.info("[Sora] %s downloaded %d bytes for job %s", clip_label, len(video_bytes), gen_id)
     return base64.b64encode(video_bytes).decode("utf-8")
 
 
@@ -735,6 +1060,90 @@ def _generate_html_animation(client, user_context: str) -> str:
     return animation_html
 
 
+def _chunk_text(text: str, chunk_size: int = 6000, overlap: int = 500) -> list[str]:
+    if len(text) <= chunk_size:
+        return [text]
+    chunks: list[str] = []
+    start = 0
+    while start < len(text):
+        end = min(len(text), start + chunk_size)
+        chunks.append(text[start:end])
+        if end >= len(text):
+            break
+        start = max(end - overlap, 0)
+    return chunks
+
+
+def _distill_lesson_context(client, topic: str, raw_context: str) -> str:
+    chunks = _chunk_text(raw_context, chunk_size=6000, overlap=500)
+    partials: list[str] = []
+    for idx, chunk in enumerate(chunks, start=1):
+        resp = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": _TRANSCRIPT_SUMMARY_SYSTEM},
+                {
+                    "role": "user",
+                    "content": (
+                        f"Topic hint: {topic}\n"
+                        f"Transcript/context chunk {idx}/{len(chunks)}:\n{chunk}"
+                    ),
+                },
+            ],
+            max_tokens=700,
+            temperature=0.2,
+        )
+        partials.append(resp.choices[0].message.content.strip())
+
+    if len(partials) == 1:
+        return partials[0]
+
+    merged = "\n\n".join(partials)
+    resp = client.chat.completions.create(
+        model=settings.OPENAI_MODEL,
+        messages=[
+            {"role": "system", "content": _TRANSCRIPT_SUMMARY_SYSTEM},
+            {
+                "role": "user",
+                "content": (
+                    f"Topic hint: {topic}\n"
+                    "Merge these chunk summaries into one final teaching brief.\n\n"
+                    f"{merged}"
+                ),
+            },
+        ],
+        max_tokens=900,
+        temperature=0.2,
+    )
+    return resp.choices[0].message.content.strip()
+
+
+def _should_prefer_html_animation(client, topic: str, distilled_context: str) -> bool:
+    try:
+        resp = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": _TECHNICAL_LESSON_CLASSIFIER_SYSTEM},
+                {
+                    "role": "user",
+                    "content": f"Topic: {topic}\n\nTeaching brief:\n{distilled_context[:5000]}",
+                },
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=120,
+            temperature=0.1,
+        )
+        import json as _json
+
+        raw = _json.loads(resp.choices[0].message.content)
+        prefer_html = bool(raw.get("prefer_html_animation"))
+        logger.info("[LLM] Lesson render strategy: prefer_html=%s reason=%s", prefer_html, raw.get("reason"))
+        return prefer_html
+    except Exception as exc:
+        logger.info("[LLM] Render strategy classifier failed: %s", exc)
+        return False
+
+
 def generate_video_lesson(
     topic: str,
     page_context: str = "",
@@ -749,7 +1158,6 @@ def generate_video_lesson(
     Returns None on any unrecoverable failure — caller should raise HTTP 503.
     """
     import base64
-    import json as _json
 
     if not settings.OPENAI_API_KEY:
         return None
@@ -763,65 +1171,112 @@ def generate_video_lesson(
 
     try:
         client = _openai_client()
+        raw_lesson_context = page_context[:24000] if page_context else topic
+        distilled_context = _distill_lesson_context(client, topic, raw_lesson_context)
+        wrong_question_line = f"The student just got this wrong: {question_text}\n" if question_text else ""
+        lesson_context = (
+            f"Topic: {topic}\n"
+            f"{wrong_question_line}"
+            f"Teaching brief:\n{distilled_context}"
+        )
+        is_youtube_lesson = "[YouTube transcript]" in page_context
+        prefer_html_animation = is_youtube_lesson or _should_prefer_html_animation(client, topic, distilled_context)
 
-        # ── Attempt 1: Sora video ─────────────────────────────────────────────
+        storyboard = _generate_storyboard(client, lesson_context)
+        detected_topic = storyboard.topic
+        full_narration = " ".join(scene.narration for scene in storyboard.scenes)
+
+        # ── Attempt 1: multi-scene Sora lesson ───────────────────────────────
         video_b64: str = ""
+        audio_b64: str = ""
         video_type: str = "html_animation"
         animation_html: str = ""
+        video_scenes: list[LLMVideoScene] = []
 
-        try:
-            video_b64 = _try_sora_video(client, user_context) or ""
-            if video_b64:
-                video_type = "sora_mp4"
-                logger.info("[LLM] Sora video generated (%d b64 chars)", len(video_b64))
-        except Exception as sora_exc:
-            logger.info(
-                "[Sora] Not available (%s: %s) — falling back to HTML animation",
-                type(sora_exc).__name__, sora_exc,
-            )
+        if not prefer_html_animation:
+            try:
+                for idx, scene in enumerate(storyboard.scenes):
+                    sora_prompt = _write_sora_scene_prompt(
+                        client=client,
+                        topic=detected_topic,
+                        style_bible=storyboard.style_bible,
+                        scene=scene,
+                        scene_index=idx,
+                        scene_count=len(storyboard.scenes),
+                    )
+                    clip_label = f"scene_{idx + 1}"
+                    clip_b64 = _try_sora_video(client, sora_prompt, clip_label) or ""
+                    if not clip_b64:
+                        raise RuntimeError(f"Sora failed for {clip_label}")
+
+                    tts_resp = client.audio.speech.create(
+                        model="tts-1-hd",
+                        voice="nova",
+                        input=scene.narration,
+                    )
+                    scene_audio_b64 = base64.b64encode(tts_resp.read()).decode("utf-8")
+                    video_scenes.append(
+                        LLMVideoScene(
+                            title=scene.title,
+                            caption=scene.caption,
+                            narration=scene.narration,
+                            audio_b64=scene_audio_b64,
+                            video_b64=clip_b64,
+                            duration_seconds=scene.duration_seconds,
+                        )
+                    )
+
+                if len(video_scenes) >= 3:
+                    video_type = "sora_scene_playlist"
+                    # Keep legacy top-level fields populated with scene 1 for compatibility.
+                    video_b64 = video_scenes[0].video_b64
+                    audio_b64 = video_scenes[0].audio_b64
+                    logger.info("[LLM] Sora scene playlist generated (%d scenes)", len(video_scenes))
+            except Exception as sora_exc:
+                logger.info(
+                    "[Sora] Scene playlist unavailable (%s: %s) — falling back to HTML animation",
+                    type(sora_exc).__name__, sora_exc,
+                )
+                video_scenes = []
+        else:
+            logger.info("[LLM] Skipping Sora and using HTML animation as primary renderer")
 
         # ── Fallback: GPT-4o HTML animation ──────────────────────────────────
-        if not video_b64:
-            animation_html = _generate_html_animation(client, user_context)
+        if not video_scenes:
+            storyboard_summary = "\n".join(
+                f"Scene {i + 1} - {scene.title}: {scene.visual_goal}. Beats: {', '.join(scene.animation_beats)}"
+                for i, scene in enumerate(storyboard.scenes)
+            )
+            animation_html = _generate_html_animation(
+                client,
+                (
+                    f"{lesson_context}\n\n"
+                    f"Storyboard:\n{storyboard_summary}\n\n"
+                    f"Style bible:\n{storyboard.style_bible}\n\n"
+                    "Render this as a premium educational animation with precise concept-first visuals."
+                ),
+            )
             logger.info("[LLM] HTML animation generated (%d chars)", len(animation_html))
-
-        # ── Narration + quiz (JSON) ────────────────────────────────────────────
-        nq_resp = client.chat.completions.create(
-            model=settings.OPENAI_MODEL,
-            messages=[
-                {"role": "system", "content": _NARRATION_QUIZ_SYSTEM},
-                {"role": "user",   "content": user_context},
-            ],
-            response_format={"type": "json_object"},
-            max_tokens=600,
-            temperature=0.4,
-        )
-        nq_raw = _json.loads(nq_resp.choices[0].message.content)
-        detected_topic = nq_raw.get("topic", topic)
-        narration_text = nq_raw.get("narration", "")
-        raw_quiz = nq_raw.get("quiz", [])
-        quiz = [LLMLessonQuiz.model_validate(q) for q in raw_quiz[:2]]
-
-        # ── TTS narration ─────────────────────────────────────────────────────
-        tts_resp = client.audio.speech.create(
-            model="tts-1-hd",
-            voice="nova",
-            input=narration_text or f"Let's learn about {topic}.",
-        )
-        audio_b64 = base64.b64encode(tts_resp.read()).decode("utf-8")
+            tts_resp = client.audio.speech.create(
+                model="tts-1-hd",
+                voice="nova",
+                input=full_narration or f"Let's learn about {topic}.",
+            )
+            audio_b64 = base64.b64encode(tts_resp.read()).decode("utf-8")
 
         logger.info(
             "[LLM] Lesson generated: topic=%r type=%s quiz=%d",
-            detected_topic, video_type, len(quiz),
+            detected_topic, video_type, len(storyboard.quiz),
         )
         return LLMVideoLesson(
             topic=detected_topic,
             html=animation_html,
-            narration=narration_text,
+            narration=full_narration,
             audio_b64=audio_b64,
-            quiz=quiz,
+            quiz=storyboard.quiz,
             video_b64=video_b64,
             video_type=video_type,
+            scenes=video_scenes,
         )
 
     except ValidationError as exc:

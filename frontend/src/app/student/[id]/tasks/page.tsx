@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCw, CheckCircle, CalendarClock } from "lucide-react";
+import { RefreshCw, CheckCircle, CalendarClock, LogOut } from "lucide-react";
 import { getStudentTasks, getStudentDashboard } from "@/lib/api";
+import { getAuth, clearAuth, type EaleAuth } from "@/lib/auth";
 import TaskCard from "@/components/TaskCard";
 import { TasksSkeleton } from "@/components/Skeletons";
 import ErrorState from "@/components/ErrorState";
@@ -15,24 +16,45 @@ import { getDusTextClass } from "@/lib/utils";
 
 export default function StudentTasksPage() {
   const params = useParams();
+  const router = useRouter();
   const studentId = Number(params.id);
   const [includeFuture, setIncludeFuture] = useState(false);
+  const [auth, setAuthState] = useState<EaleAuth | null>(null);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    const a = getAuth();
+    if (!a) { router.replace("/login"); return; }
+    if (a.role === "student" && a.studentId !== studentId) {
+      router.replace(`/student/${a.studentId}`);
+      return;
+    }
+    setAuthState(a);
+    setChecking(false);
+  }, [studentId, router]);
 
   const tasksQuery = useQuery({
     queryKey: ["tasks", studentId, includeFuture],
     queryFn: () => getStudentTasks(studentId, includeFuture),
-    enabled: !isNaN(studentId),
+    enabled: !isNaN(studentId) && !checking,
     refetchInterval: 30_000,
   });
 
   const dashQuery = useQuery({
     queryKey: ["studentDashboard", studentId],
     queryFn: () => getStudentDashboard(studentId),
-    enabled: !isNaN(studentId),
+    enabled: !isNaN(studentId) && !checking,
   });
 
   const tasks = tasksQuery.data ?? [];
   const dashboard = dashQuery.data;
+
+  function handleSignOut() {
+    clearAuth();
+    router.replace("/login");
+  }
+
+  if (checking) return null;
 
   return (
     <div className="min-h-screen bg-[#09090f]">
@@ -41,16 +63,25 @@ export default function StudentTasksPage() {
         backLabel="Dashboard"
         title={dashboard?.student_name ? `${dashboard.student_name} — Tasks` : "Tasks"}
         action={
-          <button
-            onClick={() => tasksQuery.refetch()}
-            disabled={tasksQuery.isFetching}
-            className="p-2 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/[0.06] transition-colors"
-            title="Refresh tasks"
-          >
-            <RefreshCw
-              className={`w-4 h-4 ${tasksQuery.isFetching ? "animate-spin" : ""}`}
-            />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => tasksQuery.refetch()}
+              disabled={tasksQuery.isFetching}
+              className="p-2 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/[0.06] transition-colors"
+              title="Refresh tasks"
+            >
+              <RefreshCw
+                className={`w-4 h-4 ${tasksQuery.isFetching ? "animate-spin" : ""}`}
+              />
+            </button>
+            <button
+              onClick={handleSignOut}
+              className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-300 transition-colors px-2 py-2 rounded-lg hover:bg-white/[0.06]"
+              title="Sign out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         }
       />
 
@@ -66,9 +97,7 @@ export default function StudentTasksPage() {
                 </p>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Overall DUS:{" "}
-                  <span
-                    className={`font-bold ${getDusTextClass(dashboard.overall_dus)}`}
-                  >
+                  <span className={`font-bold ${getDusTextClass(dashboard.overall_dus)}`}>
                     {Math.round(dashboard.overall_dus)}
                   </span>
                 </p>
@@ -112,27 +141,14 @@ export default function StudentTasksPage() {
                   includeFuture ? "bg-indigo-600" : "bg-white/[0.1]"
                 }`}
               >
-                <span
-                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
-                    includeFuture ? "translate-x-4" : "translate-x-1"
-                  }`}
-                />
+                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${includeFuture ? "translate-x-4" : "translate-x-1"}`} />
               </button>
             </label>
           </div>
 
-          {/* Loading */}
           {tasksQuery.isLoading && <TasksSkeleton />}
+          {tasksQuery.isError && <ErrorState message={(tasksQuery.error as Error)?.message} onRetry={() => tasksQuery.refetch()} />}
 
-          {/* Error */}
-          {tasksQuery.isError && (
-            <ErrorState
-              message={(tasksQuery.error as Error)?.message}
-              onRetry={() => tasksQuery.refetch()}
-            />
-          )}
-
-          {/* Empty state */}
           {!tasksQuery.isLoading && !tasksQuery.isError && tasks.length === 0 && (
             <div className="flex flex-col items-center gap-4 py-16 text-center">
               <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
@@ -157,16 +173,10 @@ export default function StudentTasksPage() {
             </div>
           )}
 
-          {/* Task list */}
           {tasks.length > 0 && (
             <div className="flex flex-col gap-3">
               {tasks.map((task, i) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  studentId={studentId}
-                  index={i}
-                />
+                <TaskCard key={task.id} task={task} studentId={studentId} index={i} />
               ))}
             </div>
           )}

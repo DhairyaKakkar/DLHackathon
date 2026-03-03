@@ -8,7 +8,7 @@ from app.config import settings
 from app.database import create_tables
 from app.services.seed import run_seed
 from app.services.scheduler_service import start_scheduler, stop_scheduler
-from app.routers import students, topics, questions, attempts, tasks, metrics, admin, extension
+from app.routers import students, topics, questions, attempts, tasks, metrics, admin, extension, auth
 
 logging.basicConfig(
     level=logging.INFO,
@@ -69,6 +69,7 @@ app.include_router(tasks.router, prefix=PREFIX)
 app.include_router(metrics.router, prefix=PREFIX)
 app.include_router(admin.router, prefix=PREFIX)
 app.include_router(extension.router, prefix=PREFIX)
+app.include_router(auth.router, prefix=PREFIX)
 
 
 @app.get("/", tags=["Health"])

@@ -26,6 +26,8 @@
   // ── Learn It state ─────────────────────────────────────────────────────────
   let _lessonQuizQueue = [];
   let _activeAudio = null;  // TTS narration Audio object
+  let _activeLessonVideo = null;
+  let _lessonPlaybackCleanup = null;
 
   // ── Attention monitoring state ─────────────────────────────────────────────
   let _attentionStream = null, _attentionVideo = null;
@@ -354,6 +356,8 @@
     _activeVideo = null;
     // Clean up lesson state
     if (_activeAudio) { _activeAudio.pause(); _activeAudio = null; }
+    if (_activeLessonVideo) { _activeLessonVideo.pause(); _activeLessonVideo = null; }
+    if (_lessonPlaybackCleanup) { _lessonPlaybackCleanup(); _lessonPlaybackCleanup = null; }
     _lessonQuizQueue = [];
   }
 
@@ -1039,15 +1043,15 @@
       <div class="panel-header">
         <div>
           <div class="title">📚 EALE Learn It</div>
-          <div class="meta" style="opacity:.7">Building your lesson…</div>
+          <div class="meta" style="opacity:.7">Building a multi-scene lesson…</div>
         </div>
         <button class="close-btn" title="Close">✕</button>
       </div>
-      <div class="spinner"><div class="spin"></div> Generating Sora video lesson… (60–90s)</div>
+      <div class="spinner"><div class="spin"></div> Generating storyboard, Sora scenes, and synced narration…</div>
     `);
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 180000); // 3 min for Sora generation
+    const timer = setTimeout(() => controller.abort(), 720000); // allow multi-scene Sora generation
 
     try {
       const res = await fetch(`${settings.backendUrl}/api/v1/extension/learn`, {
@@ -1071,7 +1075,7 @@
     } catch (err) {
       clearTimeout(timer);
       showError(err.name === "AbortError"
-        ? "Lesson generation timed out (3 min). Check backend."
+        ? "Lesson generation timed out while building the Sora scene playlist."
         : `Could not generate lesson: ${err.message}`);
     }
   }
@@ -1089,15 +1093,20 @@
     }));
     panel.classList.add("lesson-mode");
 
+    const scenePlaylist = Array.isArray(lessonData.scenes)
+      ? lessonData.scenes.filter((scene) => scene?.video_b64 && scene?.audio_b64)
+      : [];
+    const hasScenePlaylist = lessonData.video_type === "sora_scene_playlist" && scenePlaylist.length > 0;
     const isSoraMp4 = lessonData.video_type === "sora_mp4" && lessonData.video_b64;
-    const videoLabel = isSoraMp4 ? "Sora AI video · with narration" : "AI-generated animation · with narration";
+    const videoLabel = hasScenePlaylist
+      ? `Sora scene playlist · ${scenePlaylist.length} clips · synced narration`
+      : isSoraMp4
+        ? "Sora AI video · with narration"
+        : "AI-generated animation · with narration";
 
-    // TTS narration audio
     if (_activeAudio) { _activeAudio.pause(); _activeAudio = null; }
-    if (lessonData.audio_b64) {
-      _activeAudio = new Audio(`data:audio/mp3;base64,${lessonData.audio_b64}`);
-      _activeAudio.volume = 0.9;
-    }
+    if (_activeLessonVideo) { _activeLessonVideo.pause(); _activeLessonVideo = null; }
+    if (_lessonPlaybackCleanup) { _lessonPlaybackCleanup(); _lessonPlaybackCleanup = null; }
 
     renderPanel(`
       <div class="panel-header">
@@ -1108,9 +1117,10 @@
         <button class="close-btn" title="Close">✕</button>
       </div>
       <div id="eale-video-wrap" style="padding:4px 16px 6px;"></div>
+      <div id="eale-scene-meta" style="padding:0 16px 6px;"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 16px 14px;gap:8px;">
         <div style="display:flex;gap:6px;">
-          <button id="eale-audio-btn">🔊 Narration</button>
+          <button id="eale-audio-btn">⏸ Pause</button>
           <button id="eale-fullscreen-btn" title="Open fullscreen" style="background:none;border:1.5px solid #e5e7eb;border-radius:7px;padding:5px 10px;font-size:12px;font-weight:600;color:#4b5563;cursor:pointer;">⛶ Fullscreen</button>
         </div>
         <button class="lesson-nav primary" id="ls-quiz-btn">Quiz me →</button>
@@ -1118,16 +1128,180 @@
     `);
 
     const wrap = panel.querySelector("#eale-video-wrap");
+    const sceneMeta = panel.querySelector("#eale-scene-meta");
+    const audioBtnEl = panel.querySelector("#eale-audio-btn");
 
-    if (isSoraMp4) {
+    if (hasScenePlaylist) {
+      const videoEl = document.createElement("video");
+      videoEl.autoplay = false;
+      videoEl.loop = false;
+      videoEl.controls = true;
+      videoEl.preload = "auto";
+      videoEl.style.cssText = "width:100%;max-width:444px;border-radius:10px;display:block;margin:0 auto;background:#000;";
+      wrap.appendChild(videoEl);
+      _activeLessonVideo = videoEl;
+
+      let sceneIndex = 0;
+      let isPaused = false;
+      let sceneToken = 0;
+      let waitingForAudioEnd = false;
+
+      function cleanupSceneAudio() {
+        if (_activeAudio) {
+          _activeAudio.pause();
+          _activeAudio.src = "";
+          _activeAudio = null;
+        }
+      }
+
+      function setSceneMeta(scene) {
+        sceneMeta.innerHTML = `
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">
+            <div style="font-size:11px;font-weight:700;color:#6d28d9;text-transform:uppercase;letter-spacing:.08em;">
+              Scene ${sceneIndex + 1} / ${scenePlaylist.length}
+            </div>
+            <div style="font-size:11px;color:#9ca3af;">
+              ${scene.duration_seconds || 8}s target
+            </div>
+          </div>
+          <div style="font-size:14px;font-weight:700;color:#111827;margin-bottom:4px;">
+            ${escHtml(scene.title)}
+          </div>
+          <div style="font-size:12px;line-height:1.5;color:#4b5563;">
+            ${escHtml(scene.caption)}
+          </div>
+          <div style="margin-top:8px;height:4px;background:#e5e7eb;border-radius:999px;overflow:hidden;">
+            <div style="height:100%;width:${((sceneIndex + 1) / scenePlaylist.length) * 100}%;background:linear-gradient(90deg,#4f46e5,#10b981);"></div>
+          </div>
+        `;
+      }
+
+      async function playScene(idx) {
+        sceneIndex = idx;
+        sceneToken += 1;
+        waitingForAudioEnd = false;
+        const token = sceneToken;
+        const scene = scenePlaylist[idx];
+        cleanupSceneAudio();
+        videoEl.pause();
+        videoEl.playbackRate = 1;
+        videoEl.src = `data:video/mp4;base64,${scene.video_b64}`;
+        videoEl.load();
+        _activeAudio = new Audio(`data:audio/mp3;base64,${scene.audio_b64}`);
+        _activeAudio.volume = 0.95;
+        _activeAudio.addEventListener("ended", () => {
+          if (token !== sceneToken) return;
+          if (videoEl.ended || videoEl.currentTime >= Math.max(0, videoEl.duration - 0.35)) {
+            maybeAdvance();
+          }
+        });
+        setSceneMeta(scene);
+        audioBtnEl.textContent = "⏸ Pause";
+
+        try {
+          await Promise.all([
+            new Promise((resolve, reject) => {
+              videoEl.onloadedmetadata = () => resolve();
+              videoEl.onerror = () => reject(new Error("Scene video failed to load"));
+            }),
+            new Promise((resolve, reject) => {
+              _activeAudio.onloadedmetadata = () => resolve();
+              _activeAudio.onerror = () => reject(new Error("Scene narration failed to load"));
+            }),
+          ]);
+        } catch (err) {
+          if (token !== sceneToken) return;
+          showError(err.message || "Could not load lesson scene.");
+          return;
+        }
+
+        if (token !== sceneToken || !_activeAudio) return;
+        const audioDuration = _activeAudio.duration || scene.duration_seconds || 8;
+        const videoDuration = videoEl.duration || scene.duration_seconds || 8;
+        const rawRate = videoDuration / Math.max(audioDuration, 0.1);
+        videoEl.playbackRate = Math.max(0.85, Math.min(1.18, rawRate));
+
+        if (isPaused) return;
+        await Promise.allSettled([
+          videoEl.play(),
+          _activeAudio.play(),
+        ]);
+      }
+
+      function maybeAdvance() {
+        if (waitingForAudioEnd) return;
+        waitingForAudioEnd = true;
+        if (sceneIndex < scenePlaylist.length - 1) {
+          setTimeout(() => {
+            if (!panel.classList.contains("open")) return;
+            playScene(sceneIndex + 1).catch(() => {});
+          }, 250);
+        } else {
+          audioBtnEl.textContent = "↺ Replay";
+        }
+      }
+
+      videoEl.addEventListener("ended", () => {
+        if (_activeAudio && !_activeAudio.ended) return;
+        maybeAdvance();
+      });
+
+      audioBtnEl?.addEventListener("click", async () => {
+        if (!videoEl.src) return;
+        if (sceneIndex === scenePlaylist.length - 1 && _activeAudio?.ended && videoEl.ended) {
+          isPaused = false;
+          playScene(0).catch(() => {});
+          return;
+        }
+        if (!_activeAudio) return;
+        if (isPaused || _activeAudio.paused) {
+          isPaused = false;
+          audioBtnEl.textContent = "⏸ Pause";
+          await Promise.allSettled([videoEl.play(), _activeAudio.play()]);
+        } else {
+          isPaused = true;
+          videoEl.pause();
+          _activeAudio.pause();
+          audioBtnEl.textContent = "▶ Resume";
+        }
+      });
+
+      panel.querySelector("#eale-fullscreen-btn")?.addEventListener("click", () => {
+        if (videoEl.requestFullscreen) videoEl.requestFullscreen();
+        else if (videoEl.webkitRequestFullscreen) videoEl.webkitRequestFullscreen();
+      });
+
+      _lessonPlaybackCleanup = () => {
+        sceneToken += 1;
+        cleanupSceneAudio();
+        videoEl.pause();
+      };
+
+      playScene(0).catch((err) => showError(err.message || "Could not play lesson."));
+    } else if (isSoraMp4) {
       // ── Sora MP4: native <video> element ─────────────────────────────────
       const videoEl = document.createElement("video");
       videoEl.autoplay = true;
-      videoEl.loop = true;
+      videoEl.loop = false;
       videoEl.controls = true;
       videoEl.style.cssText = "width:100%;max-width:444px;border-radius:10px;display:block;margin:0 auto;background:#000;";
       videoEl.src = `data:video/mp4;base64,${lessonData.video_b64}`;
       wrap.appendChild(videoEl);
+      _activeLessonVideo = videoEl;
+
+      if (lessonData.audio_b64) {
+        _activeAudio = new Audio(`data:audio/mp3;base64,${lessonData.audio_b64}`);
+        _activeAudio.volume = 0.9;
+        Promise.allSettled([
+          new Promise((resolve) => { videoEl.onloadedmetadata = resolve; }),
+          new Promise((resolve) => { _activeAudio.onloadedmetadata = resolve; }),
+        ]).then(() => {
+          if (!_activeAudio) return;
+          const rawRate = (videoEl.duration || 8) / Math.max(_activeAudio.duration || 8, 0.1);
+          videoEl.playbackRate = Math.max(0.85, Math.min(1.15, rawRate));
+          _activeAudio.play().catch(() => {});
+        });
+      }
 
       // Fullscreen — use native video fullscreen API
       panel.querySelector("#eale-fullscreen-btn")?.addEventListener("click", () => {
@@ -1150,27 +1324,35 @@
         window.open(url, "_blank");
         setTimeout(() => URL.revokeObjectURL(url), 10000);
       });
+
+      if (lessonData.audio_b64) {
+        _activeAudio = new Audio(`data:audio/mp3;base64,${lessonData.audio_b64}`);
+        _activeAudio.volume = 0.9;
+      }
     }
 
-    // Start TTS audio slightly after content loads
-    setTimeout(() => _activeAudio?.play().catch(() => {}), 900);
-
     // Audio toggle
-    const audioBtnEl = panel.querySelector("#eale-audio-btn");
-    audioBtnEl?.addEventListener("click", () => {
-      if (!_activeAudio) return;
-      if (_activeAudio.paused) {
-        _activeAudio.play().catch(() => {});
-        audioBtnEl.textContent = "🔊 Narration";
-      } else {
-        _activeAudio.pause();
-        audioBtnEl.textContent = "🔇 Paused";
-      }
-    });
+    if (!hasScenePlaylist) {
+      setTimeout(() => _activeAudio?.play().catch(() => {}), 600);
+      audioBtnEl?.addEventListener("click", () => {
+        if (!_activeAudio) return;
+        if (_activeAudio.paused) {
+          _activeAudio.play().catch(() => {});
+          _activeLessonVideo?.play?.().catch?.(() => {});
+          audioBtnEl.textContent = "⏸ Pause";
+        } else {
+          _activeAudio.pause();
+          _activeLessonVideo?.pause?.();
+          audioBtnEl.textContent = "▶ Resume";
+        }
+      });
+    }
 
     // Quiz button
     panel.querySelector("#ls-quiz-btn")?.addEventListener("click", () => {
       if (_activeAudio) { _activeAudio.pause(); _activeAudio = null; }
+      if (_activeLessonVideo) { _activeLessonVideo.pause(); _activeLessonVideo = null; }
+      if (_lessonPlaybackCleanup) { _lessonPlaybackCleanup(); _lessonPlaybackCleanup = null; }
       panel.classList.remove("lesson-mode");
       if (_lessonQuizQueue.length > 0) {
         showQuiz(_lessonQuizQueue.shift());

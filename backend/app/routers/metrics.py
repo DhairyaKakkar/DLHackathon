@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
+from typing import Optional
 
 from app.database import get_db
 from app.models import Student, Topic, Question, Attempt, UserRole
@@ -70,6 +72,73 @@ def topic_metrics_for_student(
     )
     metrics = compute_topic_metrics(topic_id, topic.name, orig_ids, var_ids, attempts)
     return TopicMetrics(**metrics)
+
+
+class ResourceOut(BaseModel):
+    title: str
+    url: str
+    type: str
+    description: str
+
+class StudyStepOut(BaseModel):
+    number: int
+    title: str
+    description: str
+    duration: str
+
+class TopicRoadmapOut(BaseModel):
+    topic_name: str
+    diagnosis: str
+    steps: list[StudyStepOut]
+    resources: list[ResourceOut]
+    concepts: list[str]
+    estimated_weeks: int
+
+
+@router.get("/student/{student_id}/topic/{topic_id}/roadmap", response_model=TopicRoadmapOut)
+def topic_roadmap(student_id: int, topic_id: int, db: Session = Depends(get_db)):
+    """Generate a GPT-4o personalised improvement roadmap for one topic."""
+    from app.services.llm_service import generate_topic_roadmap
+
+    if not db.query(Student).filter(Student.id == student_id).first():
+        raise HTTPException(status_code=404, detail="Student not found")
+    topic = db.query(Topic).filter(Topic.id == topic_id).first()
+    if not topic:
+        raise HTTPException(status_code=404, detail="Topic not found")
+
+    q_all = db.query(Question).filter(Question.topic_id == topic_id).all()
+    orig_ids = {q.id for q in q_all if not q.is_variant}
+    var_ids = {q.id for q in q_all if q.is_variant}
+    all_ids = orig_ids | var_ids
+
+    attempts = (
+        db.query(Attempt)
+        .filter(Attempt.student_id == student_id, Attempt.question_id.in_(all_ids))
+        .order_by(Attempt.created_at)
+        .all()
+    )
+    metrics = compute_topic_metrics(topic_id, topic.name, orig_ids, var_ids, attempts)
+
+    result = generate_topic_roadmap(
+        topic_name=topic.name,
+        mastery=metrics["mastery"],
+        retention=metrics["retention"],
+        transfer=metrics["transfer_robustness"],
+        calibration=metrics["calibration"],
+        dus=metrics["durable_understanding_score"],
+    )
+
+    if result is None:
+        raise HTTPException(status_code=503, detail="Roadmap generation unavailable — check OPENAI_API_KEY")
+
+    return TopicRoadmapOut(
+        topic_name=topic.name,
+        diagnosis=result.diagnosis,
+        steps=[StudyStepOut(**s.model_dump()) for s in result.steps],
+        resources=[ResourceOut(**r.model_dump()) for r in result.resources],
+        concepts=result.concepts,
+        estimated_weeks=result.estimated_weeks,
+    )
 
 
 @router.get("/faculty", response_model=FacultyDashboard)

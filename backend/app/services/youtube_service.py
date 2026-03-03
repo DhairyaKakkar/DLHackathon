@@ -15,8 +15,8 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Max characters to pass to GPT-4o (keeps prompt cost reasonable)
-_MAX_TRANSCRIPT_CHARS = 4000
+# Default cap for lightweight contexts such as question generation
+_DEFAULT_TRANSCRIPT_CHARS = 4000
 
 
 def extract_video_id(url: str) -> Optional[str]:
@@ -31,11 +31,11 @@ def extract_video_id(url: str) -> Optional[str]:
     return None
 
 
-def get_youtube_transcript(url: str) -> Optional[str]:
+def get_youtube_transcript(url: str, max_chars: int | None = _DEFAULT_TRANSCRIPT_CHARS) -> Optional[str]:
     """
     Fetch transcript for a YouTube video URL.
 
-    Returns the transcript as a single string (first ~4000 chars),
+    Returns the transcript as a single string, optionally truncated,
     or None if the video has no captions or the fetch fails.
     """
     video_id = extract_video_id(url)
@@ -59,16 +59,18 @@ def get_youtube_transcript(url: str) -> Optional[str]:
             for s in fetched
         )
 
-        # Truncate to keep prompt cost manageable
-        truncated = full_text[:_MAX_TRANSCRIPT_CHARS]
-        if len(full_text) > _MAX_TRANSCRIPT_CHARS:
-            truncated += "…"
+        if max_chars is not None and max_chars > 0:
+            transcript = full_text[:max_chars]
+            if len(full_text) > max_chars:
+                transcript += "…"
+        else:
+            transcript = full_text
 
         logger.info(
             "[YouTube] Transcript fetched: video_id=%s chars=%d",
-            video_id, len(truncated),
+            video_id, len(transcript),
         )
-        return truncated
+        return transcript
 
     except Exception as exc:
         # TranscriptsDisabled, VideoUnavailable, network errors — all silent

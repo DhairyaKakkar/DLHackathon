@@ -1,6 +1,8 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -11,25 +13,19 @@ import {
   BookOpen,
   BarChart3,
   RefreshCw,
+  LogOut,
+  User,
+  Bot,
 } from "lucide-react";
-import { getFacultyDashboard } from "@/lib/api";
+import { getFacultyDashboard, getStudents } from "@/lib/api";
+import { getAuth, clearAuth } from "@/lib/auth";
 import DUSHistogram from "@/components/DUSHistogram";
 import { FacultySkeleton } from "@/components/Skeletons";
 import ErrorState from "@/components/ErrorState";
 import Navbar from "@/components/Navbar";
 import { cn, getMetricColor, getMetricBarColor } from "@/lib/utils";
 
-function StatCard({
-  label,
-  value,
-  icon: Icon,
-  iconColor,
-}: {
-  label: string;
-  value: string | number;
-  icon: React.ComponentType<{ className?: string }>;
-  iconColor: string;
-}) {
+function StatCard({ label, value, icon: Icon, iconColor }: { label: string; value: string | number; icon: React.ComponentType<{ className?: string }>; iconColor: string }) {
   return (
     <div className="bg-white/[0.04] rounded-xl border border-white/[0.08] shadow-card p-5 hover:border-white/[0.14] transition-colors">
       <div className="flex items-center justify-between mb-2">
@@ -75,7 +71,6 @@ function RiskCard({
         </div>
         <h3 className="text-sm font-semibold text-slate-300">{title}</h3>
       </div>
-
       {topics.length === 0 ? (
         <p className="text-xs text-slate-600 italic">{emptyMsg}</p>
       ) : (
@@ -103,9 +98,7 @@ function MetricBar({ value }: { value: number }) {
           style={{ width: `${Math.max(2, value)}%` }}
         />
       </div>
-      <span
-        className={cn("text-xs tabular-nums font-semibold w-7 text-right", getMetricColor(value))}
-      >
+      <span className={cn("text-xs tabular-nums font-semibold w-7 text-right", getMetricColor(value))}>
         {Math.round(value)}
       </span>
     </div>
@@ -113,39 +106,68 @@ function MetricBar({ value }: { value: number }) {
 }
 
 export default function FacultyDashboardPage() {
+  const router = useRouter();
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    const a = getAuth();
+    if (!a) { router.replace("/login"); return; }
+    if (a.role !== "faculty") { router.replace(`/student/${a.studentId}`); return; }
+    setChecking(false);
+  }, [router]);
+
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["facultyDashboard"],
     queryFn: getFacultyDashboard,
     staleTime: 60_000,
+    enabled: !checking,
   });
+
+  const { data: students } = useQuery({
+    queryKey: ["students"],
+    queryFn: getStudents,
+    staleTime: 300_000,
+    enabled: !checking,
+  });
+
+  // Only show students (not faculty accounts)
+  const studentList = (students ?? []).filter((s: { role: string }) => s.role === "student");
+
+  function handleSignOut() {
+    clearAuth();
+    router.replace("/login");
+  }
+
+  if (checking) return null;
 
   return (
     <div className="min-h-screen bg-[#09090f]">
       <Navbar
-        backHref="/"
-        backLabel="Home"
         title="Faculty Dashboard"
         action={
-          <button
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="p-2 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/[0.06] transition-colors"
-            title="Refresh"
-          >
-            <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="p-2 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/[0.06] transition-colors"
+              title="Refresh"
+            >
+              <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
+            </button>
+            <button
+              onClick={handleSignOut}
+              className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-300 transition-colors px-2 py-2 rounded-lg hover:bg-white/[0.06]"
+              title="Sign out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         }
       />
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
         {isLoading && <FacultySkeleton />}
-
-        {isError && (
-          <ErrorState
-            message={(error as Error)?.message}
-            onRetry={() => refetch()}
-          />
-        )}
+        {isError && <ErrorState message={(error as Error)?.message} onRetry={() => refetch()} />}
 
         {data && (
           <div className="flex flex-col gap-6 animate-fade-in">
@@ -161,37 +183,18 @@ export default function FacultyDashboardPage() {
 
             {/* Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              <StatCard
-                label="Students"
-                value={data.num_students}
-                icon={Users}
-                iconColor="text-indigo-400"
-              />
-              <StatCard
-                label="Topics"
-                value={data.num_topics}
-                icon={BookOpen}
-                iconColor="text-blue-400"
-              />
+              <StatCard label="Students" value={data.num_students} icon={Users} iconColor="text-indigo-400" />
+              <StatCard label="Topics" value={data.num_topics} icon={BookOpen} iconColor="text-blue-400" />
               <StatCard
                 label="Avg DUS"
-                value={
-                  data.topic_summaries.length > 0
-                    ? Math.round(
-                        data.topic_summaries.reduce(
-                          (s, t) => s + t.avg_dus,
-                          0,
-                        ) / data.topic_summaries.length,
-                      )
-                    : "—"
-                }
+                value={data.topic_summaries.length > 0 ? Math.round(data.topic_summaries.reduce((s: number, t: { avg_dus: number }) => s + t.avg_dus, 0) / data.topic_summaries.length) : "—"}
                 icon={BarChart3}
                 iconColor="text-emerald-400"
               />
             </div>
 
             {/* Risk cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
               <RiskCard
                 title="Low Retention Topics"
                 topics={data.low_retention_topics}
@@ -225,6 +228,17 @@ export default function FacultyDashboardPage() {
                 badgeBorder="border-amber-500/25"
                 emptyMsg="No overconfidence hotspots — great!"
               />
+              <RiskCard
+                title="AI Dependency Risk"
+                topics={data.ai_risk_students ?? []}
+                icon={Bot}
+                iconGlow="rgba(249,115,22,0.15)"
+                iconColor="text-orange-400"
+                badgeBg="bg-orange-500/10"
+                badgeText="text-orange-400"
+                badgeBorder="border-orange-500/25"
+                emptyMsg="No AI-dependency risk detected — great!"
+              />
             </div>
 
             {/* DUS histogram */}
@@ -239,8 +253,6 @@ export default function FacultyDashboardPage() {
                 Number of student × topic pairs at each score range
               </p>
               <DUSHistogram data={data.dus_distribution} />
-
-              {/* Legend */}
               <div className="flex flex-wrap gap-4 mt-4 justify-center">
                 {[
                   { color: "#f43f5e", label: "Fragile (< 60)" },
@@ -268,7 +280,6 @@ export default function FacultyDashboardPage() {
                   Across {data.num_students} student{data.num_students !== 1 ? "s" : ""}
                 </span>
               </div>
-
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -286,7 +297,20 @@ export default function FacultyDashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.topic_summaries.map((t, i) => (
+                    {data.topic_summaries.map((t: {
+                      topic_id: number;
+                      topic_name: string;
+                      num_students: number;
+                      avg_mastery: number;
+                      avg_retention: number;
+                      avg_transfer: number;
+                      avg_calibration: number;
+                      avg_dus: number;
+                      low_retention_flag: boolean;
+                      transfer_failure_flag: boolean;
+                      overconfidence_flag: boolean;
+                      ai_dependency_flag?: boolean;
+                    }, i: number) => (
                       <tr
                         key={t.topic_id}
                         className={cn(
@@ -339,9 +363,15 @@ export default function FacultyDashboardPage() {
                                 overconf
                               </span>
                             )}
+                            {t.ai_dependency_flag && (
+                              <span className="text-xs bg-orange-500/10 text-orange-400 border border-orange-500/20 px-1.5 py-0.5 rounded-full">
+                                ai-risk
+                              </span>
+                            )}
                             {!t.low_retention_flag &&
                               !t.transfer_failure_flag &&
-                              !t.overconfidence_flag && (
+                              !t.overconfidence_flag &&
+                              !t.ai_dependency_flag && (
                                 <span className="text-xs text-slate-700">—</span>
                               )}
                           </div>
@@ -353,27 +383,26 @@ export default function FacultyDashboardPage() {
               </div>
             </div>
 
-            {/* Quick links to student views */}
-            <div className="bg-indigo-500/[0.06] border border-indigo-500/20 rounded-xl p-5">
-              <p className="text-sm font-semibold text-indigo-300 mb-3">
-                View individual student dashboards
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { id: 1, name: "Alice Chen", tag: "Fragile Mastery" },
-                  { id: 2, name: "Bob Martinez", tag: "Overconfident" },
-                ].map(({ id, name, tag }) => (
-                  <Link
-                    key={id}
-                    href={`/student/${id}`}
-                    className="flex items-center gap-2 bg-white/[0.04] border border-indigo-500/25 text-indigo-300 text-sm font-medium px-3 py-2 rounded-lg hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all"
-                  >
-                    {name}
-                    <span className="text-xs opacity-60">({tag})</span>
-                  </Link>
-                ))}
+            {/* Individual student dashboards — dynamic list */}
+            {studentList.length > 0 && (
+              <div className="bg-indigo-500/[0.06] border border-indigo-500/20 rounded-xl p-5">
+                <p className="text-sm font-semibold text-indigo-300 mb-3">
+                  View individual student dashboards
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {studentList.map((s: { id: number; name: string }) => (
+                    <Link
+                      key={s.id}
+                      href={`/student/${s.id}`}
+                      className="flex items-center gap-2 bg-white/[0.04] border border-indigo-500/25 text-indigo-300 text-sm font-medium px-3 py-2 rounded-lg hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all"
+                    >
+                      <User className="w-3.5 h-3.5" />
+                      {s.name}
+                    </Link>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </main>
