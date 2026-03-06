@@ -1047,11 +1047,11 @@
         </div>
         <button class="close-btn" title="Close">✕</button>
       </div>
-      <div class="spinner"><div class="spin"></div> Generating Manim animation… this takes 2–5 min, please wait ☕</div>
+      <div class="spinner"><div class="spin"></div> Generating 5-chapter animated lesson… this takes up to 15 min ☕ go grab a coffee</div>
     `);
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 720000); // allow multi-scene Sora generation
+    const timer = setTimeout(() => controller.abort(), 1200000); // 20 min — multi-chapter Manim pipeline
 
     try {
       const res = await fetch(`${settings.backendUrl}/api/v1/extension/learn`, {
@@ -1099,6 +1099,7 @@
     const hasScenePlaylist = lessonData.video_type === "sora_scene_playlist" && scenePlaylist.length > 0;
     const isSoraMp4 = (lessonData.video_type === "sora_mp4" || lessonData.video_type === "manim_mp4") && lessonData.video_b64;
     const isManim = lessonData.video_type === "manim_mp4";
+    let _soraAudioAutoPlayed = false;
     const videoLabel = hasScenePlaylist
       ? `Sora scene playlist · ${scenePlaylist.length} clips · synced narration`
       : isManim
@@ -1292,7 +1293,8 @@
       wrap.appendChild(videoEl);
       _activeLessonVideo = videoEl;
 
-      if (lessonData.audio_b64) {
+      if (lessonData.audio_b64 && !isManim) {
+        // For Sora (non-Manim): video has no audio, play TTS separately
         _activeAudio = new Audio(`data:audio/mp3;base64,${lessonData.audio_b64}`);
         _activeAudio.volume = 0.9;
         Promise.allSettled([
@@ -1304,7 +1306,9 @@
           videoEl.playbackRate = Math.max(0.85, Math.min(1.15, rawRate));
           _activeAudio.play().catch(() => {});
         });
+        _soraAudioAutoPlayed = true;
       }
+      // For Manim: TTS is already muxed into the video by FFmpeg — no separate audio needed
 
       // Fullscreen — use native video fullscreen API
       panel.querySelector("#eale-fullscreen-btn")?.addEventListener("click", () => {
@@ -1336,8 +1340,23 @@
 
     // Audio toggle
     if (!hasScenePlaylist) {
-      setTimeout(() => _activeAudio?.play().catch(() => {}), 600);
+      // For Manim: audio is muxed into the video — toggle controls the video element.
+      // For Sora/HTML: separate _activeAudio object controls narration.
+      if (!_soraAudioAutoPlayed && !isManim) setTimeout(() => _activeAudio?.play().catch(() => {}), 600);
       audioBtnEl?.addEventListener("click", () => {
+        if (isManim) {
+          // Manim: pause/resume the video (audio is embedded)
+          const vid = _activeLessonVideo;
+          if (!vid) return;
+          if (vid.paused) {
+            vid.play().catch(() => {});
+            audioBtnEl.textContent = "⏸ Pause";
+          } else {
+            vid.pause();
+            audioBtnEl.textContent = "▶ Resume";
+          }
+          return;
+        }
         if (!_activeAudio) return;
         if (_activeAudio.paused) {
           _activeAudio.play().catch(() => {});
