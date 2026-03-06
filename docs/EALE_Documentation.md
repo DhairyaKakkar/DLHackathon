@@ -1,5 +1,15 @@
 # EALE: Evidence-Aligned Learning Engine
-## Measuring Durable Understanding Beyond Point-in-Time Accuracy
+
+<div class="cover-meta">
+
+| | |
+|---|---|
+| **Project** | Evidence-Aligned Learning Engine (EALE) |
+| **Hackathon** | DL Week Hackathon — Round 1 |
+| **Date** | 3rd March 2026 |
+| **Team** | ALTF4 |
+
+</div>
 
 ---
 
@@ -10,6 +20,23 @@
 ---
 
 **Keywords:** Durable Understanding, Spaced Repetition, Transfer Learning, Calibration, AI-Dependency Detection, Chrome Extension, LLM-Powered Assessment, OpenAI Sora
+
+---
+
+<div class="innovations-box">
+
+### Core Innovations at a Glance
+
+| # | Innovation | What it does |
+|---|-----------|-------------|
+| 1 | **Durable Understanding Score (DUS)** | 4-dimensional learning metric: Mastery + Retention + Transfer + Calibration |
+| 2 | **AI-Dependency Fingerprinting** | Detects AI-assisted cheating from learning trajectory, not text analysis |
+| 3 | **Context-Aware Video Quizzing** | Triggers quizzes on rewind, pause, dense content, and attention return |
+| 4 | **Sora Video Lesson Generation** | On-demand AI video lessons (1280×720 MP4) with TTS-1-HD narration |
+| 5 | **YOLOv8 Attention Monitoring** | Webcam-based face detection triggers re-engagement quizzes after distraction |
+| 6 | **Spaced Repetition Scheduler** | RETEST at +24h, TRANSFER at +72h — grounded in the Ebbinghaus forgetting curve |
+
+</div>
 
 ---
 
@@ -159,7 +186,6 @@ EALE is a four-service, containerized system communicating via HTTP APIs. Figure
                               └─────────────────┘
 ```
 
-**[Figure 1: System architecture diagram — insert screenshot here]**
 
 ### 3.2 Technology Stack
 
@@ -366,7 +392,6 @@ This is **surface memorisation**: the student memorized the output (answer) rath
 
 **EALE's response**: Transfer score < 40 → schedule TRANSFER tasks (variant questions) at 72h intervals. Roadmap module generates a personalized improvement plan: "You demonstrate strong recall but need practice applying concepts to unfamiliar scenarios. Study resource: [variant practice set]."
 
-**[Figure 2: Alice Chen's DUS dashboard showing high mastery, near-zero transfer — insert screenshot here]**
 
 ### 5.2 Archetype II: The Overconfident Guesser (*Bob Martinez, DUS 18*)
 
@@ -390,7 +415,6 @@ The **overconfidence gap** is $\Delta_\text{conf} = 0.89 - 0.10 = 0.79$ — a 79
 
 **EALE's response**: Confidence retraining through targeted "Prove It" exercises after correct answers. Faculty dashboard flags Bob under "Overconfidence Hotspots." Personalized roadmap emphasizes metacognitive exercises.
 
-**[Figure 3: Bob Martinez's calibration visualization showing catastrophic ECE — insert screenshot here]**
 
 ### 5.3 Archetype III: The AI-Dependent Learner (*Generic, Detected Algorithmically*)
 
@@ -412,7 +436,6 @@ The signature is unmistakable: **high mastery paired with catastrophic retention
 
 **EALE's response**: AI-Dependency flag appears in the Faculty Dashboard under "AI Dependency Risk." Faculty can see which students are at risk and which topics have the highest AI-dependency prevalence. Intervention strategies: live oral assessment, in-class variant questions, handwritten answer sessions.
 
-**[Figure 4: Faculty dashboard showing AI-dependency risk card — insert screenshot here]**
 
 ### 5.4 Archetype IV: The Genuine Learner (Contrast Case)
 
@@ -617,7 +640,6 @@ When a student gets a question wrong, or clicks the 📚 "Learn It" button, EALE
 
 **Backend pipeline** (detailed in Section 8.4).
 
-**[Figure 5: Learn It video lesson in fullscreen overlay — insert screenshot here]**
 
 ### 7.8 Handwritten Answer Upload and OCR Grading
 
@@ -762,7 +784,6 @@ If Sora is unavailable or times out, GPT-4o generates a self-contained HTML5 Can
 - `video_type === "sora_mp4"` → native `<video>` element with browser fullscreen API
 - `video_type === "html_animation"` → sandboxed blob URL iframe with fullscreen shimming
 
-**[Figure 6: Sora-generated video lesson with TTS narration in extension overlay — insert screenshot here]**
 
 ### 8.5 Topic Roadmap Generation
 
@@ -807,7 +828,6 @@ The student's Task Dashboard lists all pending RETEST and TRANSFER tasks sorted 
 - Due date (relative: "Due in 2 hours", "Overdue by 1 day")
 - "Answer Now" button → launches the Shadow DOM quiz overlay
 
-**[Figure 7: Student task dashboard showing due retests and transfer tasks — insert screenshot here]**
 
 ---
 
@@ -817,7 +837,6 @@ The student's Task Dashboard lists all pending RETEST and TRANSFER tasks sorted 
 
 The Faculty Dashboard provides cohort-level analytics computed in real-time from all student attempts. It is designed to surface actionable insights — not raw data, but diagnosed anomalies — for the lecturer.
 
-**[Figure 8: Faculty cohort analytics dashboard — insert screenshot here]**
 
 ### 10.2 Risk Identification
 
@@ -1179,5 +1198,3 @@ EALE is not a replacement for good teaching. It is an **evidence amplifier** —
 *Submission prepared for the DL Week Hackathon, March 2025.*
 
 *All claims in this document correspond directly to implemented code in the submitted GitHub repository.*
-
-*Source code, setup instructions, and test procedures are available in the repository's `testbench/` folder.*
