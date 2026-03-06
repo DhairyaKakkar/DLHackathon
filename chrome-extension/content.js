@@ -31,6 +31,7 @@
 
   // ── Attention monitoring state ─────────────────────────────────────────────
   let _attentionStream = null, _attentionVideo = null;
+  let _cameraEnabled = false; // in-session camera state (independent of storage flag)
   let _attentionTimer = null, _faceAbsentSince = null;
   const CV_URL = "http://localhost:8001";
   const ABSENT_QUIZ_MS = 20000;
@@ -47,7 +48,7 @@
   const host = document.createElement("div");
   host.id = "eale-shadow-host";
   host.style.cssText =
-    "position:fixed;bottom:20px;right:20px;z-index:2147483647;font-family:sans-serif;";
+    "position:fixed;bottom:20px;right:20px;z-index:2147483647;font-family:'DM Sans',system-ui,sans-serif;";
   document.body.appendChild(host);
 
   const shadow = host.attachShadow({ mode: "open" });
@@ -55,252 +56,253 @@
   // ── Inject styles into shadow root ────────────────────────────────────────
   const styleEl = document.createElement("style");
   styleEl.textContent = `
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     #eale-btn {
-      background: #4f46e5;
+      background: #111113;
       color: #fff;
       border: none;
-      border-radius: 24px;
-      padding: 10px 18px;
-      font-size: 13px;
+      border-radius: 6px;
+      padding: 9px 15px;
+      font-size: 12px;
       font-weight: 600;
       cursor: pointer;
-      box-shadow: 0 4px 14px rgba(79,70,229,.45);
       display: flex;
       align-items: center;
       gap: 6px;
-      transition: background .15s, transform .1s;
+      transition: background .12s, transform .08s;
       white-space: nowrap;
+      font-family: "DM Sans", system-ui, sans-serif;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+      letter-spacing: 0.01em;
     }
-    #eale-btn:hover { background: #4338ca; transform: translateY(-1px); }
+    #eale-btn:hover { background: #2a2a32; transform: translateY(-1px); }
     #eale-btn .dot {
-      width: 8px; height: 8px; border-radius: 50%; background: #a5f3fc;
-      animation: pulse 2s infinite;
+      width: 6px; height: 6px; border-radius: 50%; background: #e8325a;
+      animation: pulse 2.5s infinite;
     }
-    @keyframes pulse {
-      0%,100% { opacity:1; } 50% { opacity:.4; }
-    }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.3; } }
 
     #eale-panel {
       background: #fff;
-      border-radius: 16px;
-      box-shadow: 0 8px 30px rgba(0,0,0,.18);
+      border-radius: 8px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.07);
       width: 360px;
       max-width: calc(100vw - 40px);
       overflow: hidden;
       display: none;
       flex-direction: column;
-      animation: slideUp .2s ease;
+      animation: slideUp .18s ease;
+      font-family: "DM Sans", system-ui, sans-serif;
     }
     #eale-panel.open { display: flex; }
     @keyframes slideUp {
-      from { opacity:0; transform:translateY(12px); }
+      from { opacity:0; transform:translateY(10px); }
       to   { opacity:1; transform:translateY(0); }
     }
 
     .panel-header {
-      background: #4f46e5;
+      background: #111113;
       color: #fff;
-      padding: 12px 16px;
+      padding: 10px 14px;
       display: flex;
       align-items: center;
       justify-content: space-between;
     }
-    .panel-header .title { font-size: 13px; font-weight: 700; }
-    .panel-header .meta  { font-size: 11px; opacity: .75; margin-top: 1px; }
+    .panel-header .title { font-size: 12px; font-weight: 700; letter-spacing: 0.01em; }
+    .panel-header .meta  { font-size: 10px; opacity: .5; margin-top: 1px; }
     .close-btn {
-      background: none; border: none; color: rgba(255,255,255,.7);
-      cursor: pointer; font-size: 18px; line-height: 1;
-      padding: 0 2px;
+      background: none; border: none; color: rgba(255,255,255,.5);
+      cursor: pointer; font-size: 16px; line-height: 1; padding: 0 2px; transition: color .1s;
     }
     .close-btn:hover { color: #fff; }
 
-    .panel-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .panel-body { padding: 14px; display: flex; flex-direction: column; gap: 11px; }
 
     .question-text {
-      font-size: 13px; color: #1e1b4b; line-height: 1.55; font-weight: 500;
+      font-size: 13px; color: #111113; line-height: 1.55; font-weight: 500;
     }
 
     /* MCQ */
-    .options-list { display: flex; flex-direction: column; gap: 6px; }
+    .options-list { display: flex; flex-direction: column; gap: 5px; }
     .option-label {
       display: flex; align-items: center; gap: 8px;
-      padding: 8px 10px; border: 1.5px solid #e5e7eb; border-radius: 8px;
-      cursor: pointer; font-size: 12px; color: #374151;
-      transition: border-color .12s, background .12s;
+      padding: 8px 10px; border: 1px solid #d0cec9; border-radius: 6px;
+      cursor: pointer; font-size: 12px; color: #111113;
+      transition: border-color .1s, background .1s;
     }
-    .option-label:hover { border-color: #a5b4fc; background: #f5f3ff; }
-    .option-label input[type=radio] { accent-color: #4f46e5; }
-    .option-label.selected { border-color: #4f46e5; background: #eef2ff; color: #3730a3; }
+    .option-label:hover { border-color: #111113; background: #fafaf8; }
+    .option-label input[type=radio] { accent-color: #e8325a; }
+    .option-label.selected { border-color: #e8325a; background: #fff0f3; color: #111113; }
 
     /* Short text */
     .text-input {
-      width: 100%; padding: 8px 10px; border: 1.5px solid #e5e7eb;
-      border-radius: 8px; font-size: 13px; outline: none;
-      transition: border-color .12s;
+      width: 100%; padding: 8px 10px; border: 1px solid #d0cec9;
+      border-radius: 6px; font-size: 12px; outline: none;
+      transition: border-color .1s; background: #fff; color: #111113;
+      font-family: "DM Sans", system-ui, sans-serif;
     }
-    .text-input:focus { border-color: #4f46e5; }
+    .text-input:focus { border-color: #111113; }
 
     /* Confidence slider */
     .confidence-row { display: flex; flex-direction: column; gap: 4px; }
-    .confidence-label { font-size: 11px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    .confidence-label { font-size: 10px; color: #9e9eae; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
     .slider-row { display: flex; align-items: center; gap: 8px; }
-    .slider-row input[type=range] {
-      flex: 1; accent-color: #4f46e5; height: 4px;
-    }
-    .conf-value { font-size: 12px; font-weight: 700; color: #4f46e5; min-width: 28px; text-align: right; }
-    .conf-desc { font-size: 11px; color: #9ca3af; margin-top: 1px; }
+    .slider-row input[type=range] { flex: 1; accent-color: #e8325a; height: 3px; }
+    .conf-value { font-size: 12px; font-weight: 700; color: #111113; min-width: 28px; text-align: right; font-family: "JetBrains Mono", monospace; }
+    .conf-desc { font-size: 10px; color: #9e9eae; margin-top: 1px; }
 
     /* Reasoning */
     .reasoning-toggle {
-      font-size: 11px; color: #6b7280; cursor: pointer;
+      font-size: 11px; color: #9e9eae; cursor: pointer;
       background: none; border: none; padding: 0; text-decoration: underline;
+      font-family: "DM Sans", system-ui, sans-serif;
     }
     .reasoning-area {
-      width: 100%; padding: 7px 10px; border: 1.5px solid #e5e7eb;
-      border-radius: 8px; font-size: 12px; resize: vertical; min-height: 56px;
-      outline: none; display: none;
+      width: 100%; padding: 7px 10px; border: 1px solid #d0cec9;
+      border-radius: 6px; font-size: 12px; resize: vertical; min-height: 52px;
+      outline: none; display: none; font-family: "DM Sans", system-ui, sans-serif;
+      color: #111113; background: #fff;
     }
     .reasoning-area.open { display: block; }
 
     /* Submit */
     .submit-btn {
-      background: #4f46e5; color: #fff; border: none; border-radius: 8px;
-      padding: 10px; font-size: 13px; font-weight: 600; cursor: pointer;
-      transition: background .12s;
+      background: #111113; color: #fff; border: none; border-radius: 6px;
+      padding: 9px; font-size: 12px; font-weight: 600; cursor: pointer;
+      transition: background .1s; font-family: "DM Sans", system-ui, sans-serif;
     }
-    .submit-btn:hover:not(:disabled) { background: #4338ca; }
-    .submit-btn:disabled { opacity: .55; cursor: not-allowed; }
+    .submit-btn:hover:not(:disabled) { background: #2a2a32; }
+    .submit-btn:disabled { opacity: .4; cursor: not-allowed; }
 
     /* Loading */
     .spinner {
       display: flex; align-items: center; justify-content: center; padding: 24px;
-      color: #6b7280; font-size: 13px; gap: 8px;
+      color: #9e9eae; font-size: 12px; gap: 8px;
     }
-    .spin { width: 18px; height: 18px; border: 2px solid #e5e7eb; border-top-color: #4f46e5; border-radius: 50%; animation: spin .6s linear infinite; }
+    .spin { width: 16px; height: 16px; border: 2px solid #ece9e4; border-top-color: #111113; border-radius: 50%; animation: spin .6s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* Result */
     .result-block { padding: 4px 0; }
     .result-badge {
       display: inline-flex; align-items: center; gap: 5px;
-      padding: 5px 10px; border-radius: 20px; font-size: 12px; font-weight: 700;
-      margin-bottom: 8px;
+      padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 700;
+      margin-bottom: 8px; border: 1px solid;
     }
-    .result-badge.correct   { background: #dcfce7; color: #15803d; }
-    .result-badge.incorrect { background: #fee2e2; color: #b91c1c; }
-    .result-explanation { font-size: 12px; color: #4b5563; line-height: 1.55; }
-    .correct-answer-note { margin-top: 8px; font-size: 11px; color: #6b7280; }
-    .correct-answer-note span { font-weight: 700; color: #374151; }
+    .result-badge.correct   { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+    .result-badge.incorrect { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+    .result-explanation { font-size: 12px; color: #5c5c6e; line-height: 1.55; }
+    .correct-answer-note { margin-top: 8px; font-size: 11px; color: #9e9eae; }
+    .correct-answer-note span { font-weight: 700; color: #111113; }
 
     .done-btn {
-      background: #f3f4f6; color: #374151; border: none; border-radius: 8px;
-      padding: 9px; font-size: 12px; font-weight: 600; cursor: pointer;
-      transition: background .12s; margin-top: 4px;
+      background: #fafaf8; color: #5c5c6e; border: 1px solid #d0cec9; border-radius: 6px;
+      padding: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+      transition: background .1s, border-color .1s; margin-top: 4px;
+      font-family: "DM Sans", system-ui, sans-serif;
     }
-    .done-btn:hover { background: #e5e7eb; }
+    .done-btn:hover { background: #f4f3f0; border-color: #111113; color: #111113; }
 
     /* Error */
     .error-msg {
-      font-size: 12px; color: #b91c1c; background: #fee2e2; padding: 10px 12px;
-      border-radius: 8px; line-height: 1.5;
+      font-size: 12px; color: #dc2626; background: #fef2f2; padding: 9px 12px;
+      border-radius: 6px; line-height: 1.5; border: 1px solid #fecaca;
     }
 
     /* Task + mode badges */
     .task-badge {
-      font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 12px;
-      text-transform: uppercase; letter-spacing: .04em;
+      font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;
+      text-transform: uppercase; letter-spacing: .04em; border: 1px solid;
     }
-    .task-badge.retest   { background: #fef3c7; color: #92400e; }
-    .task-badge.transfer { background: #ede9fe; color: #5b21b6; }
-    .task-badge.new      { background: #dbeafe; color: #1d4ed8; }
+    .task-badge.retest   { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+    .task-badge.transfer { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
+    .task-badge.new      { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
 
     .mode-badge {
-      font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 10px;
-      text-transform: uppercase; letter-spacing: .04em; opacity: .85;
+      font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px;
+      text-transform: uppercase; letter-spacing: .04em; border: 1px solid;
     }
-    .mode-badge.due-task { background: #fde68a; color: #78350f; }
-    .mode-badge.llm      { background: #a7f3d0; color: #065f46; }
-    .mode-badge.keyword  { background: #bfdbfe; color: #1e40af; }
-    .mode-badge.random   { background: #e5e7eb; color: #4b5563; }
+    .mode-badge.due-task { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+    .mode-badge.llm      { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+    .mode-badge.keyword  { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+    .mode-badge.random   { background: #fafaf8; color: #5c5c6e; border-color: #d0cec9; }
 
-    .rationale { font-size: 11px; color: #6b7280; font-style: italic; }
+    .rationale { font-size: 11px; color: #9e9eae; font-style: italic; }
 
     /* Handwriting upload */
     .upload-btn {
-      display: inline-block; padding: 7px 12px; border: 1.5px solid #4f46e5;
-      border-radius: 8px; font-size: 12px; font-weight: 600; color: #4f46e5;
-      cursor: pointer; text-align: center; transition: background .12s;
+      display: inline-block; padding: 7px 12px; border: 1px solid #111113;
+      border-radius: 6px; font-size: 12px; font-weight: 600; color: #111113;
+      cursor: pointer; text-align: center; transition: background .1s;
+      font-family: "DM Sans", system-ui, sans-serif;
     }
-    .upload-btn:hover { background: #eef2ff; }
+    .upload-btn:hover { background: #fafaf8; }
     .remove-img-btn { display: block; }
 
     /* Video quiz mode badge */
     .video-hint {
-      font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 12px;
-      background: #fce7f3; color: #9d174d;
+      font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;
+      background: #fff0f3; color: #e8325a; border: 1px solid #fecdd3;
       text-transform: uppercase; letter-spacing: .04em;
     }
 
     /* ── Learn It — Video ── */
     #eale-panel.lesson-mode { width: 480px; }
-    .lesson-nav { background:none; border:1.5px solid #e5e7eb; border-radius:7px; padding:5px 12px; font-size:12px; font-weight:600; color:#4b5563; cursor:pointer; transition:background .1s; }
-    .lesson-nav:hover { background:#f3f4f6; }
-    .lesson-nav.primary { background:#4f46e5; color:#fff; border-color:#4f46e5; }
-    .lesson-nav.primary:hover { background:#4338ca; }
-    .learn-it-btn { background:#f0fdf4; color:#15803d; border:1.5px solid #86efac; border-radius:8px; padding:9px; font-size:12px; font-weight:600; cursor:pointer; transition:background .1s; width:100%; margin-top:4px; }
+    .lesson-nav { background:#fafaf8; border:1px solid #d0cec9; border-radius:5px; padding:5px 12px; font-size:12px; font-weight:600; color:#5c5c6e; cursor:pointer; transition:background .1s, border-color .1s; font-family:"DM Sans",sans-serif; }
+    .lesson-nav:hover { background:#f4f3f0; border-color:#111113; color:#111113; }
+    .lesson-nav.primary { background:#111113; color:#fff; border-color:#111113; }
+    .lesson-nav.primary:hover { background:#2a2a32; }
+    .learn-it-btn { background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; border-radius:6px; padding:8px; font-size:12px; font-weight:600; cursor:pointer; transition:background .1s; width:100%; margin-top:4px; font-family:"DM Sans",sans-serif; }
     .learn-it-btn:hover { background:#dcfce7; }
-    .mode-badge.learn-it { background:#fce7f3; color:#9d174d; }
-    #eale-audio-btn { background:none; border:1.5px solid #e5e7eb; border-radius:7px; padding:5px 12px; font-size:12px; font-weight:600; color:#4b5563; cursor:pointer; transition:background .1s; }
-    #eale-audio-btn:hover { background:#f3f4f6; }
+    .mode-badge.learn-it { background:#fff0f3; color:#e8325a; border-color:#fecdd3; }
+    #eale-audio-btn { background:#fafaf8; border:1px solid #d0cec9; border-radius:5px; padding:5px 12px; font-size:12px; font-weight:600; color:#5c5c6e; cursor:pointer; transition:background .1s, border-color .1s; font-family:"DM Sans",sans-serif; }
+    #eale-audio-btn:hover { background:#f4f3f0; border-color:#111113; color:#111113; }
 
     /* Attention button states */
     #eale-btn.attention-absent {
       background: #dc2626;
-      box-shadow: 0 4px 14px rgba(220,38,38,.5);
       animation: pulse-red 1s infinite;
     }
-    @keyframes pulse-red {
-      0%,100% { opacity:1; } 50% { opacity:.7; }
-    }
+    @keyframes pulse-red { 0%,100% { opacity:1; } 50% { opacity:.7; } }
 
     /* ── Camera toggle button ── */
     #eale-camera-btn {
-      background: rgba(255,255,255,0.12);
-      color: #e2e8f0;
-      border: 1.5px solid rgba(255,255,255,0.2);
-      border-radius: 24px;
+      background: #fafaf8;
+      color: #5c5c6e;
+      border: 1px solid #d0cec9;
+      border-radius: 6px;
       padding: 8px 13px;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 5px;
-      transition: background .15s, border-color .15s;
+      transition: background .12s, border-color .12s, color .12s;
       white-space: nowrap;
+      font-family: "DM Sans", system-ui, sans-serif;
     }
-    #eale-camera-btn:hover { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.32); }
+    #eale-camera-btn:hover { border-color: #111113; color: #111113; background: #f4f3f0; }
     #eale-camera-btn.cam-on {
-      background: #15803d;
-      border-color: #16a34a;
-      color: #fff;
-      box-shadow: 0 4px 12px rgba(21,128,61,.45);
+      background: #f0fdf4;
+      border-color: #86efac;
+      color: #15803d;
     }
-    #eale-camera-btn.cam-on:hover { background: #166534; }
+    #eale-camera-btn.cam-on:hover { background: #dcfce7; }
 
-    /* Green indicator dot (macOS-style) */
+    /* Green indicator dot */
     .cam-indicator {
-      width: 8px; height: 8px; border-radius: 50%;
-      background: #4ade80;
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #15803d;
       animation: pulse-green 2s infinite;
       display: none;
     }
     .cam-on .cam-indicator { display: inline-block; }
     @keyframes pulse-green {
-      0%,100% { opacity:1; box-shadow: 0 0 0 0 rgba(74,222,128,.6); }
-      50%      { opacity:.85; box-shadow: 0 0 0 4px rgba(74,222,128,0); }
+      0%,100% { opacity:1; } 50% { opacity:.5; }
     }
 
     /* Stop Camera button */
@@ -308,7 +310,7 @@
       background: #dc2626;
       color: #fff;
       border: none;
-      border-radius: 24px;
+      border-radius: 6px;
       padding: 8px 13px;
       font-size: 12px;
       font-weight: 700;
@@ -316,39 +318,41 @@
       display: none;
       align-items: center;
       gap: 4px;
-      box-shadow: 0 4px 12px rgba(220,38,38,.4);
-      transition: background .15s;
+      transition: background .12s;
       white-space: nowrap;
+      font-family: "DM Sans", system-ui, sans-serif;
     }
     #eale-stop-camera-btn.visible { display: flex; }
     #eale-stop-camera-btn:hover { background: #b91c1c; }
 
     /* Camera nudge toast */
     #eale-cam-toast {
-      background: #1e1b4b;
-      border: 1.5px solid #4f46e5;
-      border-radius: 12px;
+      background: #fff;
+      border: 1px solid #d0cec9;
+      border-top: 3px solid #111113;
+      border-radius: 8px;
       padding: 10px 14px;
       display: none;
       align-items: center;
       gap: 10px;
-      box-shadow: 0 6px 20px rgba(79,70,229,.35);
-      animation: slideUp .2s ease;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+      animation: slideUp .18s ease;
       max-width: 340px;
     }
     #eale-cam-toast.visible { display: flex; }
-    .toast-text { font-size: 12px; color: #e0e7ff; flex: 1; line-height: 1.4; }
+    .toast-text { font-size: 12px; color: #5c5c6e; flex: 1; line-height: 1.4; }
     .toast-cam-on-btn {
-      background: #4f46e5; color: #fff; border: none; border-radius: 7px;
+      background: #111113; color: #fff; border: none; border-radius: 5px;
       padding: 6px 11px; font-size: 12px; font-weight: 700; cursor: pointer;
-      white-space: nowrap; transition: background .12s;
+      white-space: nowrap; transition: background .1s;
+      font-family: "DM Sans", system-ui, sans-serif;
     }
-    .toast-cam-on-btn:hover { background: #4338ca; }
+    .toast-cam-on-btn:hover { background: #2a2a32; }
     .toast-dismiss-btn {
-      background: none; border: none; color: #94a3b8; cursor: pointer;
-      font-size: 16px; line-height: 1; padding: 0 2px;
+      background: none; border: none; color: #9e9eae; cursor: pointer;
+      font-size: 16px; line-height: 1; padding: 0 2px; transition: color .1s;
     }
-    .toast-dismiss-btn:hover { color: #e0e7ff; }
+    .toast-dismiss-btn:hover { color: #111113; }
   `;
   shadow.appendChild(styleEl);
 
@@ -439,6 +443,18 @@
     <button class="toast-dismiss-btn" title="Dismiss">✕</button>
   `;
   container.insertBefore(camToast, btnRow);
+
+  cameraBtn.addEventListener("click", () => {
+    if (_cameraEnabled) {
+      stopAttentionMonitoring();
+    } else {
+      startAttentionMonitoring();
+    }
+  });
+
+  stopCameraBtn.addEventListener("click", () => {
+    stopAttentionMonitoring();
+  });
 
   // Panel
   const panel = document.createElement("div");
@@ -859,6 +875,12 @@
       return;
     }
 
+    _cameraEnabled = true;
+    cameraBtn.classList.add("cam-on");
+    cameraBtn.innerHTML = `<span class="cam-indicator"></span> 🎥`;
+    cameraBtn.title = "Camera is active";
+    stopCameraBtn.classList.add("visible");
+
     // Hidden video element
     _attentionVideo = document.createElement("video");
     _attentionVideo.srcObject = _attentionStream;
@@ -941,6 +963,11 @@
     if (_attentionVideo) { _attentionVideo.remove(); _attentionVideo = null; }
     _faceAbsentSince = null;
     btn.classList.remove("attention-absent");
+    _cameraEnabled = false;
+    cameraBtn.classList.remove("cam-on");
+    cameraBtn.innerHTML = `<span class="cam-indicator"></span> 📷`;
+    cameraBtn.title = "Enable attention monitoring";
+    stopCameraBtn.classList.remove("visible");
   }
 
   // ── Video monitoring ───────────────────────────────────────────────────────
