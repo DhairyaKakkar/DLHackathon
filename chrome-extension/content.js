@@ -32,6 +32,7 @@
   // ── Attention monitoring state ─────────────────────────────────────────────
   let _attentionStream = null, _attentionVideo = null;
   let _cameraEnabled = false; // in-session camera state (independent of storage flag)
+  let _camNudgeTimer = null; // 60s interval — prompts user to enable camera during video
   let _attentionTimer = null, _faceAbsentSince = null;
   const CV_URL = "http://localhost:8001";
   const ABSENT_QUIZ_MS = 20000;
@@ -454,6 +455,15 @@
 
   stopCameraBtn.addEventListener("click", () => {
     stopAttentionMonitoring();
+  });
+
+  // Toast buttons
+  camToast.querySelector(".toast-cam-on-btn").addEventListener("click", () => {
+    dismissCamToast();
+    startAttentionMonitoring();
+  });
+  camToast.querySelector(".toast-dismiss-btn").addEventListener("click", () => {
+    dismissCamToast();
   });
 
   // Panel
@@ -880,6 +890,7 @@
     cameraBtn.innerHTML = `<span class="cam-indicator"></span> 🎥`;
     cameraBtn.title = "Camera is active";
     stopCameraBtn.classList.add("visible");
+    stopCamNudge(); // camera is now on — stop nudging
 
     // Hidden video element
     _attentionVideo = document.createElement("video");
@@ -968,6 +979,38 @@
     cameraBtn.innerHTML = `<span class="cam-indicator"></span> 📷`;
     cameraBtn.title = "Enable attention monitoring";
     stopCameraBtn.classList.remove("visible");
+    if (settings.attentionMonitoring && settings.videoQuizEnabled) startCamNudge();
+  }
+
+  // ── Camera nudge toast helpers ─────────────────────────────────────────────
+
+  let _camToastDismissTimer = null;
+
+  function showCamToast() {
+    if (_cameraEnabled) return;           // camera already on
+    if (!settings.attentionMonitoring) return; // feature not enabled
+    const vid = detectVideo();
+    if (!vid || vid.paused || vid.ended) return; // no video playing
+    camToast.classList.add("visible");
+    // Auto-dismiss after 8s
+    clearTimeout(_camToastDismissTimer);
+    _camToastDismissTimer = setTimeout(dismissCamToast, 8000);
+  }
+
+  function dismissCamToast() {
+    camToast.classList.remove("visible");
+    clearTimeout(_camToastDismissTimer);
+    _camToastDismissTimer = null;
+  }
+
+  function startCamNudge() {
+    if (_camNudgeTimer) return;
+    _camNudgeTimer = setInterval(showCamToast, 60000);
+  }
+
+  function stopCamNudge() {
+    if (_camNudgeTimer) { clearInterval(_camNudgeTimer); _camNudgeTimer = null; }
+    dismissCamToast();
   }
 
   // ── Video monitoring ───────────────────────────────────────────────────────
@@ -977,6 +1020,7 @@
 
   function startVideoMonitoring() {
     if (_videoHandlers) return; // already attached
+    startCamNudge();
 
     // Find or wait for a video element (covers SPAs that load video late)
     function attachToVideo(video) {
@@ -1056,6 +1100,7 @@
     }
     if (_videoDifficultyTimer) { clearInterval(_videoDifficultyTimer); _videoDifficultyTimer = null; }
     _videoPrevTime = 0;
+    stopCamNudge();
   }
 
   async function triggerVideoQuiz(video, reason) {
