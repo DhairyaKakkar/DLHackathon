@@ -882,6 +882,13 @@
       _attentionStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
     } catch (e) {
       console.warn("[EALE] Webcam access denied:", e);
+      // Show user-visible error on the camera button temporarily
+      cameraBtn.innerHTML = `<span class="cam-indicator"></span> 📷 (denied)`;
+      cameraBtn.title = "Camera access was denied — check browser permissions";
+      setTimeout(() => {
+        cameraBtn.innerHTML = `<span class="cam-indicator"></span> 📷`;
+        cameraBtn.title = "Enable attention monitoring";
+      }, 4000);
       return;
     }
 
@@ -1020,7 +1027,7 @@
 
   function startVideoMonitoring() {
     if (_videoHandlers) return; // already attached
-    startCamNudge();
+    if (settings.attentionMonitoring) startCamNudge();
 
     // Find or wait for a video element (covers SPAs that load video late)
     function attachToVideo(video) {
