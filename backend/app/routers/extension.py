@@ -486,8 +486,11 @@ def get_lesson(
     db: Session = Depends(get_db),
 ):
     """
-    Generate a GPT-4o animated video lesson (self-contained HTML) + TTS narration audio
-    + 2 quiz questions for a struggling student. Quiz questions are saved to DB tagged LEARN_IT.
+    Generate a Manim-animated video lesson + TTS narration + 2 quiz questions.
+
+    Pipeline: GPT-4o script + code → Manim render (720p MP4) → TTS → FFmpeg mux.
+    Retry loop handles Manim render failures automatically (up to 3 attempts).
+    Takes 2–5 minutes — inform the student to wait.
     """
     _get_student(x_api_key, db)   # auth only
 
@@ -497,32 +500,49 @@ def get_lesson(
             detail="Learn It requires LLM mode (USE_LLM_CONTEXT=true + OPENAI_API_KEY).",
         )
 
-    from app.services.llm_service import generate_video_lesson
+    from app.services.manim_service import generate_manim_lesson
+    from app.services.llm_service import infer_topic_and_generate_question
     from app.services.youtube_service import get_youtube_transcript
 
     # Enrich context with YouTube transcript when available
     page_context = payload.page_context
-    if payload.page_url and "youtube.com" in payload.page_url or "youtu.be" in payload.page_url:
+    if payload.page_url and ("youtube.com" in payload.page_url or "youtu.be" in payload.page_url):
         transcript = get_youtube_transcript(payload.page_url, max_chars=None)
         if transcript:
             page_context = f"[YouTube transcript]\n{transcript}\n\n{page_context}".strip()
 
-    lesson = generate_video_lesson(
-        topic=payload.topic or "the topic being studied",
+    topic = payload.topic or "the topic being studied"
+
+    lesson = generate_manim_lesson(
+        topic=topic,
         page_context=page_context,
         question_text=payload.question_text,
     )
     if not lesson:
-        raise HTTPException(status_code=503, detail="Could not generate lesson. Try again.")
+        raise HTTPException(status_code=503, detail="Could not generate lesson — check logs.")
 
-    # Persist quiz questions so they can be submitted as real attempts
+    # Generate 2 quiz questions about the lesson using GPT-4o
+    quiz_prompt = f"Topic: {lesson.topic}\nLesson content: {lesson.narration}"
+    quiz_questions_raw = []
+    for _ in range(2):
+        q = infer_topic_and_generate_question(
+            url=payload.page_url,
+            title=f"Lesson: {lesson.topic}",
+            text_snippet=quiz_prompt,
+        )
+        if q:
+            quiz_questions_raw.append(q)
+
+    # Persist quiz questions
     saved_questions: list[Question] = []
-    for q in lesson.quiz:
-        topic_obj = db.query(Topic).filter(Topic.name == lesson.topic).first()
+    for q in quiz_questions_raw:
+        topic_obj = db.query(Topic).filter(Topic.name == q.topic_name).first()
+        if not topic_obj:
+            topic_obj = db.query(Topic).filter(Topic.name == lesson.topic).first()
         if not topic_obj:
             topic_obj = Topic(
                 name=lesson.topic,
-                description=f"Auto-created by EALE Learn It ({settings.OPENAI_MODEL})",
+                description="Auto-created by EALE Learn It (Manim)",
             )
             db.add(topic_obj)
             db.flush()
@@ -541,11 +561,11 @@ def get_lesson(
             topic_id=topic_obj.id,
             text=q.question_text,
             question_type=q_type,
-            difficulty=q.difficulty,
+            difficulty=getattr(q, "difficulty", 2),
             correct_answer=correct_ans,
             options=opts,
             is_variant=False,
-            variant_template="LEARN_IT",
+            variant_template="LEARN_IT_MANIM",
         )
         db.add(question)
         db.flush()
@@ -557,22 +577,12 @@ def get_lesson(
 
     return ExtensionLearnOut(
         topic=lesson.topic,
-        html=lesson.html,
+        html="",
         audio_b64=lesson.audio_b64,
         quiz_questions=[QuestionOut.model_validate(q) for q in saved_questions],
         video_b64=lesson.video_b64,
-        video_type=lesson.video_type,
-        scenes=[
-            LessonSceneOut(
-                title=scene.title,
-                caption=scene.caption,
-                narration=scene.narration,
-                audio_b64=scene.audio_b64,
-                video_b64=scene.video_b64,
-                duration_seconds=scene.duration_seconds,
-            )
-            for scene in lesson.scenes
-        ],
+        video_type=lesson.video_type,   # "manim_mp4"
+        scenes=[],
     )
 
 
