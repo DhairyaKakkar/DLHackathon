@@ -1550,7 +1550,8 @@
         attentionMonitoring: data.attentionMonitoring || false,
         videoQuizEnabled:    data.videoQuizEnabled    || false,
       };
-      if (settings.attentionMonitoring) startAttentionMonitoring();
+      // Show camera button if feature is enabled in options; camera stays OFF until user clicks
+      cameraBtn.style.display = settings.attentionMonitoring ? "" : "none";
       if (settings.videoQuizEnabled)    startVideoMonitoring();
     }
   );
@@ -1565,8 +1566,10 @@
     if (changes.useLlmGrading)       settings.useLlmGrading       = changes.useLlmGrading.newValue;
     if (changes.attentionMonitoring) {
       settings.attentionMonitoring = changes.attentionMonitoring.newValue;
-      if (settings.attentionMonitoring) startAttentionMonitoring();
-      else stopAttentionMonitoring();
+      cameraBtn.style.display = settings.attentionMonitoring ? "" : "none";
+      if (!settings.attentionMonitoring && _cameraEnabled) {
+        stopAttentionMonitoring(); // turn off camera if feature is disabled mid-session
+      }
     }
     if (changes.videoQuizEnabled) {
       settings.videoQuizEnabled = changes.videoQuizEnabled.newValue;
