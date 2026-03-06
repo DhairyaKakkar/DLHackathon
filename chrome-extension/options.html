@@ -3,207 +3,234 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EALE Extension — Options</title>
+  <title>EALE Extension — Settings</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,700;1,9..144,800&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #09090f;
-      --surface: rgba(255,255,255,0.04);
-      --surface-strong: rgba(255,255,255,0.06);
-      --border: rgba(255,255,255,0.08);
-      --border-hover: rgba(255,255,255,0.14);
-      --text: #f1f5f9;
-      --text-secondary: #94a3b8;
-      --text-muted: #475569;
-      --text-dim: #334155;
-      --primary: #6366f1;
+      --bg:           #fafaf8;
+      --surface:      #ffffff;
+      --surface-alt:  #f4f3f0;
+      --border:       #d0cec9;
+      --border-quiet: #ece9e4;
+      --text:         #111113;
+      --text-2:       #5c5c6e;
+      --text-3:       #9e9eae;
+      --accent:       #e8325a;
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: "DM Sans", system-ui, sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
       display: flex;
       justify-content: center;
-      padding: 32px 16px 40px;
+      padding: 40px 16px 56px;
       -webkit-font-smoothing: antialiased;
     }
+
     .page { width: 100%; max-width: 580px; }
+
     header {
       display: flex;
       align-items: center;
-      gap: 10px;
-      margin-bottom: 24px;
+      gap: 12px;
+      margin-bottom: 32px;
     }
+
     .logo {
       width: 36px;
       height: 36px;
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
-      border-radius: 10px;
+      background: #111113;
+      border-radius: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 16px;
+    }
+
+    .logo span {
+      font-family: "Fraunces", Georgia, serif;
+      font-style: italic;
       font-weight: 800;
+      font-size: 18px;
       color: #fff;
-      box-shadow: 0 0 18px rgba(99,102,241,0.28);
+      line-height: 1;
     }
-    h1 { font-size: 20px; font-weight: 700; color: var(--text); }
-    h1 span { color: #a5b4fc; }
-    .subhead { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 
-    .card {
-      background: var(--surface);
+    .header-text h1 {
+      font-family: "Fraunces", Georgia, serif;
+      font-style: italic;
+      font-weight: 800;
+      font-size: 22px;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+
+    .header-text h1 span { color: var(--accent); }
+    .header-text .sub { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+
+    /* Section groups replace cards-in-cards */
+    .section {
       border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 18px;
-      margin-bottom: 14px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.05);
-      transition: border-color .15s ease;
-    }
-    .card:hover { border-color: var(--border-hover); }
-    .card h2 {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: .08em;
-      margin-bottom: 14px;
+      border-radius: 10px;
+      background: var(--surface);
+      margin-bottom: 12px;
+      overflow: hidden;
     }
 
-    label { display: block; font-size: 13px; font-weight: 600; color: #cbd5e1; margin-bottom: 4px; }
-    .hint  { font-size: 11px; color: var(--text-muted); margin-bottom: 8px; }
+    .section-head {
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border-quiet);
+      background: var(--surface-alt);
+    }
+
+    .section-head h2 {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-3);
+      text-transform: uppercase;
+      letter-spacing: .09em;
+    }
+
+    .section-body { padding: 18px; }
+
+    label { display: block; font-size: 13px; font-weight: 600; color: var(--text-2); margin-bottom: 4px; }
+    .hint  { font-size: 11px; color: var(--text-3); margin-bottom: 8px; line-height: 1.5; }
+
     input[type=text], input[type=url], input[type=number], select {
       width: 100%;
       padding: 8px 10px;
-      border: 1.5px solid rgba(255,255,255,0.1);
-      border-radius: 8px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
       font-size: 13px;
       outline: none;
-      transition: border-color .12s, background .12s;
-      background: rgba(255,255,255,0.03);
+      transition: border-color .12s;
+      background: var(--bg);
       color: var(--text);
+      font-family: "DM Sans", sans-serif;
     }
-    input::placeholder { color: var(--text-dim); }
-    input:focus, select:focus {
-      border-color: rgba(99,102,241,0.6);
-      background: rgba(255,255,255,0.05);
+    input[type=text]:focus, input[type=url]:focus,
+    input[type=number]:focus, select:focus {
+      border-color: #111113;
     }
+    input::placeholder { color: var(--text-3); }
 
     .field { margin-bottom: 14px; }
     .field:last-child { margin-bottom: 0; }
 
     .row { display: flex; gap: 8px; }
     .row input { flex: 1; }
+
     .add-btn {
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      background: #111113;
       color: #fff;
       border: none;
-      border-radius: 8px;
+      border-radius: 6px;
       padding: 8px 14px;
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
       white-space: nowrap;
-      box-shadow: 0 0 12px rgba(99,102,241,0.22);
-      transition: opacity .12s;
+      transition: background .12s;
+      font-family: "DM Sans", sans-serif;
     }
-    .add-btn:hover { opacity: .9; }
+    .add-btn:hover { background: #2a2a32; }
 
-    .allowlist { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+    .allowlist { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
     .allowlist-item {
       display: flex; align-items: center; justify-content: space-between;
       padding: 8px 10px;
-      background: var(--surface-strong);
-      border: 1px solid rgba(255,255,255,0.09);
-      border-radius: 8px;
+      background: var(--bg);
+      border: 1px solid var(--border-quiet);
+      border-radius: 6px;
       font-size: 13px;
-      color: var(--text-secondary);
+      color: var(--text-2);
+      font-family: "JetBrains Mono", monospace;
     }
     .del-btn {
-      background: none; border: none; color: #fb7185; cursor: pointer;
-      font-size: 16px; padding: 0 2px; line-height: 1;
+      background: none; border: none; color: var(--text-3); cursor: pointer;
+      font-size: 16px; padding: 0 2px; line-height: 1; transition: color .12s;
     }
-    .del-btn:hover { color: #f43f5e; }
+    .del-btn:hover { color: #dc2626; }
 
-    .footer { display: flex; align-items: center; justify-content: space-between; margin-top: 24px; }
-    .save-btn {
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
-      color: #fff;
-      border: none;
-      border-radius: 10px;
-      padding: 10px 24px;
-      font-size: 13px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: opacity .12s;
-      box-shadow: 0 0 24px rgba(99,102,241,0.3);
-    }
-    .save-btn:hover { opacity: .9; }
-    .status { font-size: 13px; color: #10b981; font-weight: 600; opacity: 0; transition: opacity .3s; }
-    .status.show { opacity: 1; }
-
-    .demo-keys {
-      background: rgba(99,102,241,0.08);
-      border: 1px solid rgba(99,102,241,0.25);
-      border-radius: 8px;
-      padding: 10px 12px;
-      font-size: 12px;
-      color: #a5b4fc;
-      line-height: 1.6;
-    }
-    .demo-keys strong { color: #c7d2fe; }
-    code {
-      background: rgba(99,102,241,0.16);
-      border: 1px solid rgba(99,102,241,0.25);
-      padding: 1px 4px;
-      border-radius: 4px;
-      font-size: 11px;
-      color: #e2e8f0;
-    }
-
+    /* Toggle rows — horizontal rule between */
     .toggle-row {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 6px 0;
+      padding: 10px 0;
     }
-    .toggle-row + .toggle-row { border-top: 1px solid rgba(255,255,255,0.06); }
-    .toggle-label { font-size: 13px; font-weight: 600; color: #cbd5e1; }
-    .toggle-desc  { font-size: 11px; color: var(--text-muted); margin-top: 1px; max-width: 300px; }
-    .toggle-switch {
-      position: relative; width: 36px; height: 20px; flex-shrink: 0;
-    }
+    .toggle-row + .toggle-row { border-top: 1px solid var(--border-quiet); }
+    .toggle-label { font-size: 13px; font-weight: 600; color: var(--text); }
+    .toggle-desc  { font-size: 11px; color: var(--text-3); margin-top: 2px; max-width: 320px; line-height: 1.4; }
+
+    /* Sharp rectangular toggle (not pill) */
+    .toggle-switch { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
     .toggle-switch input { opacity: 0; width: 0; height: 0; }
     .toggle-slider {
-      position: absolute; inset: 0; background: rgba(255,255,255,0.2); border-radius: 20px;
-      cursor: pointer; transition: background .2s;
+      position: absolute; inset: 0; background: rgba(0,0,0,0.12);
+      border-radius: 3px; cursor: pointer; transition: background .18s;
     }
     .toggle-slider::before {
       content: ""; position: absolute; width: 14px; height: 14px;
-      left: 3px; top: 3px; background: #fff; border-radius: 50%;
-      transition: transform .2s;
+      left: 3px; top: 3px; background: #fff; border-radius: 2px;
+      transition: transform .18s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
     }
-    .toggle-switch input:checked + .toggle-slider { background: #6366f1; }
+    .toggle-switch input:checked + .toggle-slider { background: #111113; }
     .toggle-switch input:checked + .toggle-slider::before { transform: translateX(16px); }
 
-    .llm-note {
-      background: rgba(16,185,129,0.08);
-      border: 1px solid rgba(16,185,129,0.28);
-      border-radius: 8px;
+    /* Info boxes */
+    .info-box {
+      background: var(--bg);
+      border: 1px solid var(--border-quiet);
+      border-radius: 6px;
       padding: 10px 12px;
       font-size: 12px;
-      color: #86efac;
+      color: var(--text-2);
       line-height: 1.6;
-      margin-top: 10px;
+      margin-top: 12px;
     }
-    .llm-note strong { color: #bbf7d0; }
+    .info-box strong { color: var(--text); }
+    code {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 11px;
+      color: var(--text);
+      font-family: "JetBrains Mono", monospace;
+    }
+
     .section-note {
       font-size: 12px;
-      color: var(--text-muted);
+      color: var(--text-3);
       margin-bottom: 12px;
       line-height: 1.55;
     }
+
+    .footer {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 24px;
+    }
+
+    .save-btn {
+      background: #111113;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 28px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .12s;
+      font-family: "DM Sans", sans-serif;
+    }
+    .save-btn:hover { background: #2a2a32; }
+
+    .status { font-size: 13px; color: #15803d; font-weight: 600; opacity: 0; transition: opacity .3s; }
+    .status.show { opacity: 1; }
 
     @media (max-width: 520px) {
       .footer { flex-direction: column; gap: 10px; align-items: stretch; }
@@ -215,123 +242,134 @@
 <body>
   <div class="page">
     <header>
-      <div class="logo">E</div>
-      <div>
-        <h1>EALE <span>Options</span></h1>
-        <p class="subhead">Configure extension behavior and safety settings</p>
+      <div class="logo"><span>E</span></div>
+      <div class="header-text">
+        <h1>EALE <span>Settings</span></h1>
+        <p class="sub">Configure extension behavior and safety settings</p>
       </div>
     </header>
 
     <!-- Backend -->
-    <div class="card">
-      <h2>Backend</h2>
-      <div class="field">
-        <label for="backendUrl">API URL</label>
-        <div class="hint">Where your EALE backend is running</div>
-        <input type="url" id="backendUrl" placeholder="http://localhost:8000" />
+    <div class="section">
+      <div class="section-head"><h2>Backend</h2></div>
+      <div class="section-body">
+        <div class="field">
+          <label for="backendUrl">API URL</label>
+          <div class="hint">Where your EALE backend is running</div>
+          <input type="url" id="backendUrl" placeholder="http://localhost:8000" />
+        </div>
       </div>
     </div>
 
     <!-- Student -->
-    <div class="card">
-      <h2>Student Identity</h2>
-      <div class="field">
-        <label for="studentApiKey">API Key</label>
-        <div class="hint">Your personal EALE API key</div>
-        <input type="text" id="studentApiKey" placeholder="student-alice-key" />
-      </div>
-      <div class="demo-keys">
-        <strong>Demo keys (from seed data):</strong><br />
-        Alice Chen (fragile mastery): <code>student-alice-key</code><br />
-        Bob Martinez (overconfident): <code>student-bob-key</code>
+    <div class="section">
+      <div class="section-head"><h2>Student Identity</h2></div>
+      <div class="section-body">
+        <div class="field">
+          <label for="studentApiKey">API Key</label>
+          <div class="hint">Your personal EALE API key</div>
+          <input type="text" id="studentApiKey" placeholder="student-alice-key" />
+        </div>
+        <div class="info-box">
+          <strong>Demo keys:</strong><br />
+          Alice Chen (fragile mastery): <code>student-alice-key</code><br />
+          Bob Martinez (overconfident): <code>student-bob-key</code>
+        </div>
       </div>
     </div>
 
     <!-- Auto-pop -->
-    <div class="card">
-      <h2>Auto-Pop Timer</h2>
-      <div class="field">
-        <label for="autoPopMinutes">Quiz every N minutes (0 = disabled)</label>
-        <div class="hint">When on an allowed page, automatically trigger a quiz</div>
-        <input type="number" id="autoPopMinutes" min="0" max="120" value="0" />
+    <div class="section">
+      <div class="section-head"><h2>Auto-Pop Timer</h2></div>
+      <div class="section-body">
+        <div class="field">
+          <label for="autoPopMinutes">Quiz every N minutes (0 = disabled)</label>
+          <div class="hint">When on an allowed page, automatically trigger a quiz</div>
+          <input type="number" id="autoPopMinutes" min="0" max="120" value="0" />
+        </div>
       </div>
     </div>
 
     <!-- LLM Mode -->
-    <div class="card">
-      <h2>AI (LLM) Mode</h2>
-      <p class="section-note">
-        Requires <code>USE_LLM_CONTEXT=true</code> / <code>USE_LLM_GRADING=true</code>
-        and <code>OPENAI_API_KEY</code> set on the backend server.
-        These toggles mirror the server-side feature flags for your reference.
-      </p>
-      <div class="toggle-row">
-        <div>
-          <div class="toggle-label">AI Topic &amp; Question Generation</div>
-          <div class="toggle-desc">OpenAI reads the page and generates a transfer question</div>
+    <div class="section">
+      <div class="section-head"><h2>AI (LLM) Mode</h2></div>
+      <div class="section-body">
+        <p class="section-note">
+          Requires <code>USE_LLM_CONTEXT=true</code> / <code>USE_LLM_GRADING=true</code>
+          and <code>OPENAI_API_KEY</code> set on the backend server.
+        </p>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">AI Topic &amp; Question Generation</div>
+            <div class="toggle-desc">OpenAI reads the page and generates a transfer question</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="useLlmContext" />
+            <span class="toggle-slider"></span>
+          </label>
         </div>
-        <label class="toggle-switch">
-          <input type="checkbox" id="useLlmContext" />
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
-      <div class="toggle-row">
-        <div>
-          <div class="toggle-label">AI Short-Answer Grading</div>
-          <div class="toggle-desc">OpenAI grades free-text answers with a rubric</div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">AI Short-Answer Grading</div>
+            <div class="toggle-desc">OpenAI grades free-text answers with a rubric</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="useLlmGrading" />
+            <span class="toggle-slider"></span>
+          </label>
         </div>
-        <label class="toggle-switch">
-          <input type="checkbox" id="useLlmGrading" />
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
-      <div class="llm-note">
-        <strong>Privacy:</strong> Raw page text is never stored. Only the hash and
-        generated question are cached (10 min TTL). Text snippets are capped at 2 000 chars.
+        <div class="info-box" style="margin-top:12px;">
+          <strong>Privacy:</strong> Raw page text is never stored. Only the hash and
+          generated question are cached (10 min TTL). Text snippets are capped at 2 000 chars.
+        </div>
       </div>
     </div>
 
     <!-- Computer Vision -->
-    <div class="card">
-      <h2>Computer Vision</h2>
-      <div class="toggle-row">
-        <div>
-          <div class="toggle-label">Attention Monitoring</div>
-          <div class="toggle-desc">Webcam detects when you look away; quizzes on return (needs CompVis on port 8001)</div>
+    <div class="section">
+      <div class="section-head"><h2>Computer Vision</h2></div>
+      <div class="section-body">
+        <div class="toggle-row">
+          <div>
+          <div class="toggle-label">Camera Button in Extension Bar</div>
+          <div class="toggle-desc">Shows a camera toggle in the extension bar. Camera only activates when you click it — never auto-starts. Needs CompVis on port 8001.</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="attentionMonitoring" />
+            <span class="toggle-slider"></span>
+          </label>
         </div>
-        <label class="toggle-switch">
-          <input type="checkbox" id="attentionMonitoring" />
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
-      <div class="toggle-row">
-        <div>
-          <div class="toggle-label">Video Quiz Mode</div>
-          <div class="toggle-desc">Auto-pauses videos to quiz when you rewind, pause, or when dense content is detected via GPT-4o</div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Video Quiz Mode</div>
+            <div class="toggle-desc">Auto-pauses videos to quiz when you rewind, pause, or when dense content is detected via GPT-4o</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="videoQuizEnabled" />
+            <span class="toggle-slider"></span>
+          </label>
         </div>
-        <label class="toggle-switch">
-          <input type="checkbox" id="videoQuizEnabled" />
-          <span class="toggle-slider"></span>
-        </label>
       </div>
     </div>
 
     <!-- Allowlist -->
-    <div class="card">
-      <h2>Page Allowlist</h2>
-      <p class="section-note" style="margin-bottom:10px;">
-        The EALE button only activates on pages whose URL contains one of these patterns.
-      </p>
-      <div class="row">
-        <input type="text" id="newPattern" placeholder="e.g. canvas.instructure.com" />
-        <button class="add-btn" id="addPatternBtn">Add</button>
+    <div class="section">
+      <div class="section-head"><h2>Page Allowlist</h2></div>
+      <div class="section-body">
+        <p class="section-note">
+          The EALE button only activates on pages whose URL contains one of these patterns.
+        </p>
+        <div class="row">
+          <input type="text" id="newPattern" placeholder="e.g. canvas.instructure.com" />
+          <button class="add-btn" id="addPatternBtn">Add</button>
+        </div>
+        <div class="allowlist" id="allowlistEl"></div>
       </div>
-      <div class="allowlist" id="allowlistEl"></div>
     </div>
 
     <div class="footer">
       <button class="save-btn" id="saveBtn">Save Settings</button>
-      <span class="status" id="statusEl">✓ Saved!</span>
+      <span class="status" id="statusEl">Saved</span>
     </div>
   </div>
 
