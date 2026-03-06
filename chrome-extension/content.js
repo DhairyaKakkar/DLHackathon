@@ -1236,7 +1236,7 @@
         </div>
         <button class="close-btn" title="Close">✕</button>
       </div>
-      <div class="spinner"><div class="spin"></div> Generating storyboard, Sora scenes, and synced narration…</div>
+      <div class="spinner"><div class="spin"></div> Generating Manim animation… this takes 2–5 min, please wait ☕</div>
     `);
 
     const controller = new AbortController();
@@ -1286,12 +1286,15 @@
       ? lessonData.scenes.filter((scene) => scene?.video_b64 && scene?.audio_b64)
       : [];
     const hasScenePlaylist = lessonData.video_type === "sora_scene_playlist" && scenePlaylist.length > 0;
-    const isSoraMp4 = lessonData.video_type === "sora_mp4" && lessonData.video_b64;
+    const isSoraMp4 = (lessonData.video_type === "sora_mp4" || lessonData.video_type === "manim_mp4") && lessonData.video_b64;
+    const isManim = lessonData.video_type === "manim_mp4";
     const videoLabel = hasScenePlaylist
       ? `Sora scene playlist · ${scenePlaylist.length} clips · synced narration`
-      : isSoraMp4
-        ? "Sora AI video · with narration"
-        : "AI-generated animation · with narration";
+      : isManim
+        ? "Manim animation · AI generated · 720p"
+        : isSoraMp4
+          ? "Sora AI video · with narration"
+          : "AI-generated animation · with narration";
 
     if (_activeAudio) { _activeAudio.pause(); _activeAudio = null; }
     if (_activeLessonVideo) { _activeLessonVideo.pause(); _activeLessonVideo = null; }
