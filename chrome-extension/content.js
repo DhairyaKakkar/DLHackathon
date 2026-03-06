@@ -411,14 +411,39 @@
   learnBtn.onmouseenter = () => { learnBtn.style.background = "#047857"; learnBtn.style.transform = "translateY(-1px)"; };
   learnBtn.onmouseleave = () => { learnBtn.style.background = "#059669"; learnBtn.style.transform = ""; };
 
+  // Camera toggle button (hidden until attentionMonitoring feature gate is on)
+  const cameraBtn = document.createElement("button");
+  cameraBtn.id = "eale-camera-btn";
+  cameraBtn.innerHTML = `<span class="cam-indicator"></span> 📷`;
+  cameraBtn.title = "Enable attention monitoring";
+  cameraBtn.style.display = "none"; // hidden until feature gate loads
+
+  // Stop Camera button (visible only when camera is active)
+  const stopCameraBtn = document.createElement("button");
+  stopCameraBtn.id = "eale-stop-camera-btn";
+  stopCameraBtn.innerHTML = `⏹ Stop Camera`;
+  stopCameraBtn.title = "Stop camera";
+
+  btnRow.appendChild(stopCameraBtn);
+  btnRow.appendChild(cameraBtn);
   btnRow.appendChild(learnBtn);
   btnRow.appendChild(btn);
   container.appendChild(btnRow);
 
+  // Toast nudge (above button row)
+  const camToast = document.createElement("div");
+  camToast.id = "eale-cam-toast";
+  camToast.innerHTML = `
+    <span class="toast-text">📷 Turn on camera for attention tracking</span>
+    <button class="toast-cam-on-btn">Camera On</button>
+    <button class="toast-dismiss-btn" title="Dismiss">✕</button>
+  `;
+  container.insertBefore(camToast, btnRow);
+
   // Panel
   const panel = document.createElement("div");
   panel.id = "eale-panel";
-  container.insertBefore(panel, btnRow);
+  container.insertBefore(panel, camToast);
 
   function renderPanel(html) {
     panel.innerHTML = html;
