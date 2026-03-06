@@ -9,17 +9,14 @@ interface DUSGaugeProps {
 
 export default function DUSGauge({ score, size = "lg" }: DUSGaugeProps) {
   const RADIUS = 80;
-  const STROKE = 14;
+  const STROKE = 12;
   const CENTER_X = 110;
   const CENTER_Y = 108;
 
-  // The half-circle path: from left to right, through the top
-  // M (centerX - radius, centerY) A radius radius 0 0 1 (centerX + radius, centerY)
   const startX = CENTER_X - RADIUS;
   const endX = CENTER_X + RADIUS;
   const arcPath = `M ${startX} ${CENTER_Y} A ${RADIUS} ${RADIUS} 0 0 1 ${endX} ${CENTER_Y}`;
 
-  // Total arc length = π × r
   const arcLen = Math.PI * RADIUS;
   const progress = Math.max(0, Math.min(100, score));
   const dashOffset = arcLen * (1 - progress / 100);
@@ -42,10 +39,7 @@ export default function DUSGauge({ score, size = "lg" }: DUSGaugeProps) {
         : { score: "2.8rem", label: "0.85rem" };
 
   return (
-    <div
-      className="flex flex-col items-center"
-      style={{ width: dimensions.w }}
-    >
+    <div className="flex flex-col items-center" style={{ width: dimensions.w }}>
       <svg
         viewBox="0 0 220 130"
         width={dimensions.w}
@@ -56,9 +50,9 @@ export default function DUSGauge({ score, size = "lg" }: DUSGaugeProps) {
         <path
           d={arcPath}
           fill="none"
-          stroke="rgba(255,255,255,0.08)"
+          stroke="rgba(0,0,0,0.08)"
           strokeWidth={STROKE}
-          strokeLinecap="round"
+          strokeLinecap="butt"
         />
 
         {/* Progress arc */}
@@ -67,10 +61,10 @@ export default function DUSGauge({ score, size = "lg" }: DUSGaugeProps) {
           fill="none"
           stroke={color}
           strokeWidth={STROKE}
-          strokeLinecap="round"
+          strokeLinecap="butt"
           strokeDasharray={`${arcLen} ${arcLen}`}
           strokeDashoffset={dashOffset}
-          style={{ transition: "stroke-dashoffset 0.8s ease-out", filter: `drop-shadow(0 0 6px ${color}60)` }}
+          style={{ transition: "stroke-dashoffset 0.8s ease-out" }}
         />
 
         {/* Score number */}
@@ -79,10 +73,11 @@ export default function DUSGauge({ score, size = "lg" }: DUSGaugeProps) {
           y={CENTER_Y - 10}
           textAnchor="middle"
           dominantBaseline="middle"
-          fontWeight="800"
+          fontWeight="700"
           fontSize={textSizes.score}
           fill={color}
-          fontFamily="Inter, system-ui, sans-serif"
+          fontFamily="'Fraunces', Georgia, serif"
+          fontStyle="italic"
         >
           {Math.round(score)}
         </text>
@@ -95,34 +90,16 @@ export default function DUSGauge({ score, size = "lg" }: DUSGaugeProps) {
           dominantBaseline="middle"
           fontWeight="600"
           fontSize={textSizes.label}
-          fill="#475569"
-          letterSpacing="0.08em"
-          fontFamily="Inter, system-ui, sans-serif"
+          fill="#9e9eae"
+          letterSpacing="0.1em"
+          fontFamily="'DM Sans', system-ui, sans-serif"
         >
           {label.toUpperCase()}
         </text>
 
         {/* Range labels */}
-        <text
-          x={startX - 2}
-          y={CENTER_Y + 18}
-          textAnchor="middle"
-          fontSize="0.6rem"
-          fill="#334155"
-          fontFamily="Inter, system-ui, sans-serif"
-        >
-          0
-        </text>
-        <text
-          x={endX + 2}
-          y={CENTER_Y + 18}
-          textAnchor="middle"
-          fontSize="0.6rem"
-          fill="#334155"
-          fontFamily="Inter, system-ui, sans-serif"
-        >
-          100
-        </text>
+        <text x={startX - 2} y={CENTER_Y + 18} textAnchor="middle" fontSize="0.6rem" fill="#9e9eae" fontFamily="'JetBrains Mono', monospace">0</text>
+        <text x={endX + 2}   y={CENTER_Y + 18} textAnchor="middle" fontSize="0.6rem" fill="#9e9eae" fontFamily="'JetBrains Mono', monospace">100</text>
       </svg>
     </div>
   );

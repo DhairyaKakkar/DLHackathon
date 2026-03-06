@@ -145,7 +145,7 @@ function TopicCard({
       <p className="text-xs text-gray-500 leading-snug">{action}</p>
 
       {/* CTA hint */}
-      <p className="text-xs text-indigo-500 font-medium text-center mt-auto">
+      <p className="text-xs text-[#e8325a] font-medium text-center mt-auto">
         Tap to view roadmap →
       </p>
     </div>

@@ -22,42 +22,42 @@ export function getDusLabel(score: number): string {
 
 export function getDusColor(score: number): string {
   const level = getDusLevel(score);
-  if (level === "durable") return "#10b981";
-  if (level === "partial") return "#f59e0b";
-  return "#f43f5e";
+  if (level === "durable") return "#15803d";
+  if (level === "partial") return "#b45309";
+  return "#dc2626";
 }
 
 export function getDusBg(score: number): string {
   const level = getDusLevel(score);
-  if (level === "durable") return "bg-emerald-500/10 border-emerald-500/30";
-  if (level === "partial") return "bg-amber-500/10 border-amber-500/30";
-  return "bg-red-500/10 border-red-500/30";
+  if (level === "durable") return "bg-emerald-50 border-emerald-200";
+  if (level === "partial") return "bg-amber-50 border-amber-200";
+  return "bg-red-50 border-red-200";
 }
 
 export function getDusTextClass(score: number): string {
   const level = getDusLevel(score);
-  if (level === "durable") return "text-emerald-400";
-  if (level === "partial") return "text-amber-400";
-  return "text-red-400";
+  if (level === "durable") return "text-emerald-700";
+  if (level === "partial") return "text-amber-700";
+  return "text-red-600";
 }
 
 export function getDusBadgeClass(score: number): string {
   const level = getDusLevel(score);
   if (level === "durable")
-    return "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30";
+    return "bg-emerald-50 text-emerald-700 border border-emerald-200";
   if (level === "partial")
-    return "bg-amber-500/15 text-amber-400 border border-amber-500/30";
-  return "bg-red-500/15 text-red-400 border border-red-500/30";
+    return "bg-amber-50 text-amber-700 border border-amber-200";
+  return "bg-red-50 text-red-600 border border-red-200";
 }
 
 export function getMetricColor(score: number): string {
-  if (score >= 80) return "text-emerald-400";
-  if (score >= 60) return "text-amber-400";
-  return "text-red-400";
+  if (score >= 80) return "text-emerald-700";
+  if (score >= 60) return "text-amber-700";
+  return "text-red-600";
 }
 
 export function getMetricBarColor(score: number): string {
-  if (score >= 80) return "bg-emerald-500";
+  if (score >= 80) return "bg-emerald-600";
   if (score >= 60) return "bg-amber-500";
   return "bg-red-500";
 }
@@ -74,7 +74,6 @@ export function getTopRisk(topic: {
     [topic.retention, "Low retention"],
     [topic.calibration, "Calibration issues"],
   ];
-  // Overconfidence is special — flag it if gap > 15pp
   if (topic.overconfidence_gap > 15) {
     return `Overconfident (+${Math.round(topic.overconfidence_gap)}pp)`;
   }

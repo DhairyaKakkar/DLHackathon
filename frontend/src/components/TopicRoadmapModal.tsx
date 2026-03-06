@@ -50,18 +50,18 @@ function ResourceCard({ res }: { res: TopicRoadmapResource }) {
       href={res.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex items-start gap-3 p-3 bg-white border border-gray-100 rounded-xl hover:border-indigo-200 hover:shadow-sm transition-all group"
+      className="flex items-start gap-3 p-3 bg-white border border-[#d0cec9] rounded-lg hover:border-[#111113] transition-all group"
     >
       <span className={cn("flex items-center justify-center w-7 h-7 rounded-lg border shrink-0 mt-0.5", color)}>
         {icon}
       </span>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-800 group-hover:text-indigo-600 transition-colors leading-snug">
+        <p className="text-sm font-semibold text-[#111113] group-hover:text-[#e8325a] transition-colors leading-snug">
           {res.title}
         </p>
         <p className="text-xs text-gray-400 mt-0.5 leading-snug">{res.description}</p>
       </div>
-      <ExternalLink className="w-3.5 h-3.5 text-gray-300 group-hover:text-indigo-400 shrink-0 mt-1 transition-colors" />
+      <ExternalLink className="w-3.5 h-3.5 text-[#9e9eae] group-hover:text-[#e8325a] shrink-0 mt-1 transition-colors" />
     </a>
   );
 }
@@ -83,12 +83,12 @@ export default function TopicRoadmapModal({ topic, studentId, onClose }: TopicRo
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       {/* Panel */}
-      <div className="relative bg-slate-50 w-full sm:max-w-2xl sm:rounded-2xl rounded-t-2xl shadow-2xl max-h-[92vh] flex flex-col overflow-hidden">
+      <div className="relative bg-[#fafaf8] w-full sm:max-w-2xl sm:rounded-xl rounded-t-xl shadow-panel max-h-[92vh] flex flex-col overflow-hidden border border-[#d0cec9]">
         {/* Header */}
         <div className="bg-white border-b border-gray-100 px-5 py-4 flex items-start justify-between gap-3 shrink-0">
           <div>
             <div className="flex items-center gap-2 mb-0.5">
-              <Brain className="w-4 h-4 text-indigo-500" />
+              <Brain className="w-4 h-4 text-[#e8325a]" />
               <h2 className="text-base font-bold text-gray-900">{topic.topic_name}</h2>
             </div>
             <p className="text-xs text-gray-400">
@@ -113,7 +113,7 @@ export default function TopicRoadmapModal({ topic, studentId, onClose }: TopicRo
           {/* Loading */}
           {isLoading && (
             <div className="flex flex-col items-center gap-3 py-16 text-center">
-              <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
+              <Loader2 className="w-8 h-8 text-[#e8325a] animate-spin" />
               <p className="text-sm font-semibold text-gray-700">Generating your personalised roadmap…</p>
               <p className="text-xs text-gray-400">GPT-4o is analysing your metrics and curating resources</p>
             </div>
@@ -148,7 +148,7 @@ export default function TopicRoadmapModal({ topic, studentId, onClose }: TopicRo
                   {data.concepts.map((c) => (
                     <span
                       key={c}
-                      className="text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100 px-2.5 py-1 rounded-full"
+                      className="text-xs font-medium bg-[#fff0f3] text-[#e8325a] border border-[#fecdd3] px-2.5 py-1 rounded"
                     >
                       {c}
                     </span>
@@ -171,11 +171,11 @@ export default function TopicRoadmapModal({ topic, studentId, onClose }: TopicRo
                   {data.steps.map((step, i) => (
                     <div key={step.number} className="flex gap-3">
                       <div className="flex flex-col items-center gap-1 shrink-0">
-                        <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">
+                        <div className="w-6 h-6 rounded bg-[#111113] text-white flex items-center justify-center text-xs font-bold font-mono">
                           {step.number}
                         </div>
                         {i < data.steps.length - 1 && (
-                          <div className="w-px flex-1 bg-indigo-100 min-h-[16px]" />
+                          <div className="w-px flex-1 bg-[#ece9e4] min-h-[16px]" />
                         )}
                       </div>
                       <div className="pb-3 flex-1 min-w-0">

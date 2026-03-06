@@ -2,15 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
 
 :root {
-  --background: #09090f;
-  --surface: rgba(255, 255, 255, 0.04);
-  --border: rgba(255, 255, 255, 0.08);
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #475569;
+  --background:    #fafaf8;
+  --surface:       #ffffff;
+  --surface-alt:   #f4f3f0;
+  --border-quiet:  #ece9e4;
+  --border:        #d0cec9;
+  --border-strong: #111113;
+  --accent:        #e8325a;
+  --accent-hover:  #c41f47;
+  --text-primary:  #111113;
+  --text-secondary:#5c5c6e;
+  --text-dim:      #9e9eae;
 }
 
 html {
@@ -20,33 +25,23 @@ html {
 
 body {
   background-color: var(--background);
-  font-family: "Inter", system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   color: var(--text-primary);
 }
 
 /* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.18);
-}
+::-webkit-scrollbar        { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: rgba(0,0,0,0.14); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.22); }
 
 /* Range input styling */
 input[type="range"] {
-  @apply h-1.5 appearance-none bg-white/10 rounded-full outline-none;
+  @apply h-1.5 appearance-none bg-black/10 rounded-full outline-none;
 }
 input[type="range"]::-webkit-slider-thumb {
-  @apply appearance-none w-4 h-4 rounded-full bg-indigo-500 cursor-pointer shadow-sm;
+  @apply appearance-none w-4 h-4 rounded-full bg-[#e8325a] cursor-pointer shadow-sm;
 }
 input[type="range"]::-moz-range-thumb {
-  @apply w-4 h-4 rounded-full bg-indigo-500 cursor-pointer border-0 shadow-sm;
+  @apply w-4 h-4 rounded-full bg-[#e8325a] cursor-pointer border-0 shadow-sm;
 }
