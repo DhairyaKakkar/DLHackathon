@@ -264,6 +264,91 @@
     @keyframes pulse-red {
       0%,100% { opacity:1; } 50% { opacity:.7; }
     }
+
+    /* ── Camera toggle button ── */
+    #eale-camera-btn {
+      background: rgba(255,255,255,0.12);
+      color: #e2e8f0;
+      border: 1.5px solid rgba(255,255,255,0.2);
+      border-radius: 24px;
+      padding: 8px 13px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: background .15s, border-color .15s;
+      white-space: nowrap;
+    }
+    #eale-camera-btn:hover { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.32); }
+    #eale-camera-btn.cam-on {
+      background: #15803d;
+      border-color: #16a34a;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(21,128,61,.45);
+    }
+    #eale-camera-btn.cam-on:hover { background: #166534; }
+
+    /* Green indicator dot (macOS-style) */
+    .cam-indicator {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #4ade80;
+      animation: pulse-green 2s infinite;
+      display: none;
+    }
+    .cam-on .cam-indicator { display: inline-block; }
+    @keyframes pulse-green {
+      0%,100% { opacity:1; box-shadow: 0 0 0 0 rgba(74,222,128,.6); }
+      50%      { opacity:.85; box-shadow: 0 0 0 4px rgba(74,222,128,0); }
+    }
+
+    /* Stop Camera button */
+    #eale-stop-camera-btn {
+      background: #dc2626;
+      color: #fff;
+      border: none;
+      border-radius: 24px;
+      padding: 8px 13px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      gap: 4px;
+      box-shadow: 0 4px 12px rgba(220,38,38,.4);
+      transition: background .15s;
+      white-space: nowrap;
+    }
+    #eale-stop-camera-btn.visible { display: flex; }
+    #eale-stop-camera-btn:hover { background: #b91c1c; }
+
+    /* Camera nudge toast */
+    #eale-cam-toast {
+      background: #1e1b4b;
+      border: 1.5px solid #4f46e5;
+      border-radius: 12px;
+      padding: 10px 14px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 6px 20px rgba(79,70,229,.35);
+      animation: slideUp .2s ease;
+      max-width: 340px;
+    }
+    #eale-cam-toast.visible { display: flex; }
+    .toast-text { font-size: 12px; color: #e0e7ff; flex: 1; line-height: 1.4; }
+    .toast-cam-on-btn {
+      background: #4f46e5; color: #fff; border: none; border-radius: 7px;
+      padding: 6px 11px; font-size: 12px; font-weight: 700; cursor: pointer;
+      white-space: nowrap; transition: background .12s;
+    }
+    .toast-cam-on-btn:hover { background: #4338ca; }
+    .toast-dismiss-btn {
+      background: none; border: none; color: #94a3b8; cursor: pointer;
+      font-size: 16px; line-height: 1; padding: 0 2px;
+    }
+    .toast-dismiss-btn:hover { color: #e0e7ff; }
   `;
   shadow.appendChild(styleEl);
 
