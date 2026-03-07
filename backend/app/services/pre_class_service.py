@@ -1,0 +1,323 @@
+"""
+Pre-class brief and schedule intelligence service.
+
+Provides:
+  - get_next_class_datetime()  — next real-calendar occurrence of a recurring class
+  - get_readiness_score()      — urgency-weighted DUS
+  - parse_schedule_from_text() — GPT-4o parses natural language schedule
+  - generate_pre_class_brief() — GPT-4o personalized prep packet + quiz questions
+  - generate_post_class_check()— GPT-4o post-class knowledge check questions
+"""
+
+import logging
+from datetime import datetime, timedelta
+from typing import Any, Optional
+
+from pydantic import BaseModel, ValidationError
+
+from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+DAY_MAP = {
+    "monday": 0, "tuesday": 1, "wednesday": 2,
+    "thursday": 3, "friday": 4, "saturday": 5, "sunday": 6,
+}
+
+
+# ─── Pydantic schemas ─────────────────────────────────────────────────────────
+
+class ParsedClass(BaseModel):
+    subject_name: str
+    topic_id: Optional[int] = None
+    days_of_week: list[str]
+    class_time: str          # "09:00"
+    teacher_name: Optional[str] = None
+    room: Optional[str] = None
+
+
+class PrepQuestion(BaseModel):
+    id: int
+    question: str
+    type: str                 # "MCQ" | "SHORT_TEXT"
+    options: Optional[list[str]] = None
+    correct: str
+    explanation: str
+
+
+class PreClassBrief(BaseModel):
+    readiness_score: float    # 0–100, urgency-weighted
+    summary: str
+    focus_areas: list[str]
+    quick_review_points: list[str]
+    prep_questions: list[PrepQuestion]
+    estimated_prep_time: str
+    personalized_tip: str
+
+
+class PostClassCheck(BaseModel):
+    summary: str
+    check_questions: list[PrepQuestion]
+    reflection_prompts: list[str]
+
+
+# ─── Utilities ────────────────────────────────────────────────────────────────
+
+def get_next_class_datetime(days_of_week: list[str], class_time: str) -> Optional[datetime]:
+    """Return the next calendar datetime for a recurring class (within next 14 days)."""
+    try:
+        hour, minute = map(int, class_time.split(":"))
+    except Exception:
+        return None
+
+    target_weekdays = [DAY_MAP[d.lower()] for d in days_of_week if d.lower() in DAY_MAP]
+    if not target_weekdays:
+        return None
+
+    now = datetime.utcnow()
+    for delta in range(15):
+        candidate = now + timedelta(days=delta)
+        if candidate.weekday() in target_weekdays:
+            candidate_dt = candidate.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            if candidate_dt > now:
+                return candidate_dt
+    return None
+
+
+def get_readiness_score(dus: float, days_until: Optional[int]) -> float:
+    """
+    Urgency-weighted readiness: penalizes low DUS when class is near.
+    Formula: readiness = DUS * urgency_factor
+      - 0 days: factor 0.70 (must act now)
+      - 1 day:  factor 0.85
+      - 2 days: factor 0.92
+      - 3+ days: factor 1.0 (no urgency penalty)
+    """
+    if days_until is None:
+        return round(dus, 1)
+    factors = {0: 0.70, 1: 0.85, 2: 0.92}
+    factor = factors.get(days_until, 1.0)
+    return round(min(100.0, dus * factor), 1)
+
+
+def _openai_client():
+    from openai import OpenAI
+    return OpenAI(api_key=settings.OPENAI_API_KEY)
+
+
+# ─── GPT-4o: parse schedule from text ────────────────────────────────────────
+
+_PARSE_SYSTEM = """\
+You are a school schedule parser. Extract structured class information from the student's description.
+Map each class to the closest topic from the provided list (topic_id = null if no match).
+
+Days must be lowercase: monday, tuesday, wednesday, thursday, friday, saturday, sunday
+Time must be 24h format: "09:00", "14:30"
+
+Return ONLY valid JSON:
+{
+  "classes": [
+    {
+      "subject_name": "Physics",
+      "topic_id": null,
+      "days_of_week": ["monday", "wednesday"],
+      "class_time": "09:00",
+      "teacher_name": "Mr. Smith",
+      "room": "Lab 3"
+    }
+  ]
+}
+"""
+
+
+def parse_schedule_from_text(text: str, topic_names: list[str]) -> Optional[list[dict]]:
+    """Use GPT-4o to parse a freeform schedule description into structured data."""
+    if not settings.OPENAI_API_KEY:
+        return None
+    try:
+        client = _openai_client()
+        resp = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": _PARSE_SYSTEM},
+                {"role": "user", "content": (
+                    f"Available EALE topics: {', '.join(topic_names)}\n\n"
+                    f"Student's schedule description:\n{text}"
+                )},
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=1500,
+            temperature=0.1,
+        )
+        data = __import__("json").loads(resp.choices[0].message.content)
+        return data.get("classes", [])
+    except Exception as exc:
+        logger.warning("[PreClass] parse_schedule failed: %s", exc)
+        return None
+
+
+# ─── GPT-4o: pre-class brief ─────────────────────────────────────────────────
+
+_BRIEF_SYSTEM = """\
+You are an expert educational coach generating a personalized pre-class preparation brief.
+The student's performance data is provided. Generate a targeted prep packet using gpt-4o.
+
+Return ONLY valid JSON:
+{
+  "readiness_score": <float 0-100>,
+  "summary": "<2-3 sentence assessment of readiness and what to focus on>",
+  "focus_areas": ["<specific subtopic 1>", "<specific subtopic 2>", "<specific subtopic 3>"],
+  "quick_review_points": [
+    "<key fact or formula to remember>",
+    "<key fact or formula to remember>",
+    "<key fact or formula to remember>",
+    "<key fact or formula to remember>"
+  ],
+  "prep_questions": [
+    {
+      "id": 1,
+      "question": "<question text>",
+      "type": "MCQ",
+      "options": ["A", "B", "C", "D"],
+      "correct": "<exact option text>",
+      "explanation": "<why this is correct>"
+    },
+    ... (5 questions total, mix of MCQ and SHORT_TEXT)
+  ],
+  "estimated_prep_time": "<e.g. 40 minutes>",
+  "personalized_tip": "<one specific tip based on their weakest metric>"
+}
+
+For SHORT_TEXT questions, omit "options" and set "correct" to a model answer.
+"""
+
+
+def generate_pre_class_brief(
+    subject_name: str,
+    topic_metrics: Any,          # TopicMetrics dataclass or None
+    days_until: Optional[int],
+    topic_names: list[str],
+) -> Optional[dict]:
+    """Call GPT-4o to generate a personalized pre-class brief."""
+    if not settings.OPENAI_API_KEY:
+        return None
+
+    # Build context from metrics if available
+    metrics_block = ""
+    if topic_metrics:
+        metrics_block = (
+            f"\nStudent performance on this topic:\n"
+            f"  DUS (Durable Understanding Score): {topic_metrics.durable_understanding_score:.1f}/100\n"
+            f"  Mastery: {topic_metrics.mastery:.1f}/100\n"
+            f"  Retention: {topic_metrics.retention:.1f}/100\n"
+            f"  Transfer: {topic_metrics.transfer_robustness:.1f}/100\n"
+            f"  Calibration: {topic_metrics.calibration:.1f}/100\n"
+            f"  Overconfidence gap: {topic_metrics.overconfidence_gap:+.1f} points\n"
+            f"  Total attempts: {topic_metrics.total_attempts}\n"
+            f"  Mastery insight: {topic_metrics.mastery_explanation}\n"
+            f"  Retention insight: {topic_metrics.retention_explanation}\n"
+            f"  Transfer insight: {topic_metrics.transfer_explanation}\n"
+            f"  Calibration insight: {topic_metrics.calibration_explanation}\n"
+        )
+    else:
+        metrics_block = "\nNo prior performance data available for this subject yet."
+
+    days_str = f"{days_until} day{'s' if days_until != 1 else ''}" if days_until is not None else "soon"
+
+    try:
+        client = _openai_client()
+        resp = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": _BRIEF_SYSTEM},
+                {"role": "user", "content": (
+                    f"Subject: {subject_name}\n"
+                    f"Class is in: {days_str}\n"
+                    f"{metrics_block}\n"
+                    f"Available EALE topics for reference: {', '.join(topic_names)}\n\n"
+                    "Generate a highly personalized pre-class prep brief. "
+                    "Make the questions exactly calibrated to the student's current level — "
+                    "not too easy, not too hard. Focus on their specific weak areas."
+                )},
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=2500,
+            temperature=0.4,
+        )
+        brief = __import__("json").loads(resp.choices[0].message.content)
+        # Override readiness_score with our formula if we have DUS
+        if topic_metrics and days_until is not None:
+            brief["readiness_score"] = get_readiness_score(
+                topic_metrics.durable_understanding_score, days_until
+            )
+        return brief
+    except Exception as exc:
+        logger.warning("[PreClass] generate_pre_class_brief failed: %s", exc)
+        return None
+
+
+# ─── GPT-4o: post-class check ────────────────────────────────────────────────
+
+_POST_SYSTEM = """\
+You are an expert educational coach generating a post-class knowledge consolidation check.
+The student just finished a class. Generate questions to lock in what they just learned.
+
+Return ONLY valid JSON:
+{
+  "summary": "<encouraging 2-sentence message about consolidating learning>",
+  "check_questions": [
+    {
+      "id": 1,
+      "question": "<question on content covered in class>",
+      "type": "MCQ",
+      "options": ["A", "B", "C", "D"],
+      "correct": "<exact option>",
+      "explanation": "<explanation>"
+    },
+    ... (5 questions)
+  ],
+  "reflection_prompts": [
+    "<open-ended reflection question about the class>",
+    "<open-ended reflection question>",
+    "<open-ended reflection question>"
+  ]
+}
+"""
+
+
+def generate_post_class_check(
+    subject_name: str,
+    topic_metrics: Any,
+) -> Optional[dict]:
+    """Call GPT-4o to generate post-class consolidation questions."""
+    if not settings.OPENAI_API_KEY:
+        return None
+
+    metrics_block = ""
+    if topic_metrics:
+        metrics_block = (
+            f"\nCurrent metrics after the class:\n"
+            f"  DUS: {topic_metrics.durable_understanding_score:.1f}/100\n"
+            f"  Weakest area: retention ({topic_metrics.retention:.1f}/100)\n"
+        )
+
+    try:
+        client = _openai_client()
+        resp = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": _POST_SYSTEM},
+                {"role": "user", "content": (
+                    f"Subject just completed: {subject_name}\n"
+                    f"{metrics_block}\n"
+                    "Generate consolidation questions to lock in what was just learned."
+                )},
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=2000,
+            temperature=0.4,
+        )
+        return __import__("json").loads(resp.choices[0].message.content)
+    except Exception as exc:
+        logger.warning("[PreClass] generate_post_class_check failed: %s", exc)
+        return None

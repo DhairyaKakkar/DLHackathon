@@ -13,20 +13,24 @@ import {
   Info,
   LogOut,
   GraduationCap,
+  Calendar,
 } from "lucide-react";
-import { getStudentDashboard } from "@/lib/api";
+import { getStudentDashboard, getStudentSchedule } from "@/lib/api";
 import { getAuth, clearAuth, type EaleAuth } from "@/lib/auth";
 import {
   getDusTextClass,
   getDusBg,
   getDusLabel,
 } from "@/lib/utils";
-import type { TopicMetrics } from "@/lib/types";
+import type { TopicMetrics, ClassScheduleOut } from "@/lib/types";
 import DUSGauge from "@/components/DUSGauge";
 import MetricCard from "@/components/MetricCard";
 import TopicTable from "@/components/TopicTable";
 import LearningPath from "@/components/LearningPath";
 import TopicRoadmapModal from "@/components/TopicRoadmapModal";
+import ScheduleOnboardingModal from "@/components/ScheduleOnboardingModal";
+import PreClassAlert from "@/components/PreClassAlert";
+import CameraConsentModal, { CameraIndicator } from "@/components/CameraConsentModal";
 import { StudentDashboardSkeleton } from "@/components/Skeletons";
 import ErrorState from "@/components/ErrorState";
 import Navbar from "@/components/Navbar";
@@ -50,6 +54,10 @@ export default function StudentDashboardPage() {
   const [checking, setChecking] = useState(true);
   const [tab, setTab] = useState<"overview" | "roadmap">("overview");
   const [selectedTopic, setSelectedTopic] = useState<TopicMetrics | null>(null);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showCameraConsent, setShowCameraConsent] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [scheduleLoaded, setScheduleLoaded] = useState(false);
 
   useEffect(() => {
     const a = getAuth();
@@ -67,6 +75,29 @@ export default function StudentDashboardPage() {
     queryFn: () => getStudentDashboard(studentId),
     enabled: !isNaN(studentId) && !checking,
   });
+
+  const { data: schedules = [] } = useQuery<ClassScheduleOut[]>({
+    queryKey: ["schedule", studentId],
+    queryFn: () => getStudentSchedule(studentId),
+    enabled: !isNaN(studentId) && !checking && auth?.role === "student",
+    onSuccess: (data) => {
+      // Show onboarding if student has no schedule yet
+      if (!scheduleLoaded) {
+        setScheduleLoaded(true);
+        if (data.length === 0) setShowScheduleModal(true);
+      }
+    },
+  } as any);
+
+  // Camera consent — check localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const consent = localStorage.getItem("eale_camera_consent");
+      if (consent === "accepted") setCameraActive(true);
+    }
+  }, []);
+
+  const urgentClasses = schedules.filter((s: ClassScheduleOut) => s.is_urgent || s.is_upcoming);
 
   function handleSignOut() {
     clearAuth();
@@ -88,13 +119,33 @@ export default function StudentDashboardPage() {
         action={
           <div className="flex items-center gap-2">
             {!isFaculty && (
-              <Link
-                href={`/student/${studentId}/tasks`}
-                className="flex items-center gap-1.5 bg-[#111113] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-[#2a2a32] transition-colors"
-              >
-                <ClipboardList className="w-4 h-4" />
-                Tasks
-              </Link>
+              <>
+                <button
+                  onClick={() => setShowScheduleModal(true)}
+                  className="flex items-center gap-1.5 text-sm text-[#9e9eae] hover:text-[#111113] transition-colors px-2 py-2 rounded-lg hover:bg-black/[0.04]"
+                  title="Manage schedule"
+                >
+                  <Calendar className="w-4 h-4" />
+                </button>
+                <CameraIndicator
+                  active={cameraActive}
+                  onToggle={() => {
+                    if (!cameraActive) {
+                      setShowCameraConsent(true);
+                    } else {
+                      setCameraActive(false);
+                      localStorage.setItem("eale_camera_consent", "declined");
+                    }
+                  }}
+                />
+                <Link
+                  href={`/student/${studentId}/tasks`}
+                  className="flex items-center gap-1.5 bg-[#111113] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-[#2a2a32] transition-colors"
+                >
+                  <ClipboardList className="w-4 h-4" />
+                  Tasks
+                </Link>
+              </>
             )}
             {isFaculty && (
               <span className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg font-semibold">
@@ -118,6 +169,13 @@ export default function StudentDashboardPage() {
 
         {isError && (
           <ErrorState message={(error as Error)?.message} onRetry={() => refetch()} />
+        )}
+
+        {/* Pre-class alert */}
+        {!isFaculty && urgentClasses.length > 0 && (
+          <div className="mb-2">
+            <PreClassAlert urgentClasses={urgentClasses} studentId={studentId} />
+          </div>
         )}
 
         {data && (
@@ -239,6 +297,7 @@ export default function StudentDashboardPage() {
                 studentId={studentId}
                 isFaculty={isFaculty}
                 onTopicClick={setSelectedTopic}
+                schedules={schedules}
               />
             )}
           </div>
@@ -249,6 +308,28 @@ export default function StudentDashboardPage() {
             topic={selectedTopic}
             studentId={studentId}
             onClose={() => setSelectedTopic(null)}
+          />
+        )}
+
+        {showScheduleModal && !isFaculty && (
+          <ScheduleOnboardingModal
+            studentId={studentId}
+            onComplete={() => setShowScheduleModal(false)}
+          />
+        )}
+
+        {showCameraConsent && (
+          <CameraConsentModal
+            onAccept={() => {
+              setCameraActive(true);
+              localStorage.setItem("eale_camera_consent", "accepted");
+              setShowCameraConsent(false);
+            }}
+            onDecline={() => {
+              setCameraActive(false);
+              localStorage.setItem("eale_camera_consent", "declined");
+              setShowCameraConsent(false);
+            }}
           />
         )}
       </main>

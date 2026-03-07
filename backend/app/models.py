@@ -39,6 +39,7 @@ class Student(Base):
 
     attempts = relationship("Attempt", back_populates="student", lazy="dynamic")
     scheduled_tasks = relationship("ScheduledTask", back_populates="student", lazy="dynamic")
+    class_schedules = relationship("ClassSchedule", back_populates="student", lazy="dynamic")
 
 
 class Topic(Base):
@@ -121,4 +122,44 @@ class ScheduledTask(Base):
 
     __table_args__ = (
         Index("ix_tasks_student_due", "student_id", "due_at"),
+    )
+
+
+class ClassSchedule(Base):
+    """A recurring class in a student's school timetable."""
+    __tablename__ = "class_schedules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True)
+    subject_name = Column(String(255), nullable=False)
+    topic_id = Column(Integer, ForeignKey("topics.id", ondelete="SET NULL"), nullable=True)
+    days_of_week = Column(JSON, nullable=False)    # ["monday", "wednesday", "friday"]
+    class_time = Column(String(5), nullable=False)  # "09:00" 24h
+    teacher_name = Column(String(255), nullable=True)
+    room = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    student = relationship("Student", back_populates="class_schedules")
+    topic = relationship("Topic")
+    pre_class_tasks = relationship("PreClassTask", back_populates="schedule", lazy="dynamic")
+
+
+class PreClassTask(Base):
+    """Generated pre-class brief or post-class check for a scheduled class."""
+    __tablename__ = "pre_class_tasks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True)
+    schedule_id = Column(Integer, ForeignKey("class_schedules.id", ondelete="CASCADE"), nullable=False, index=True)
+    task_type = Column(String(20), nullable=False)  # PRE_CLASS_BRIEF | POST_CLASS_CHECK
+    class_datetime = Column(DateTime, nullable=False)
+    brief_data = Column(JSON, nullable=True)         # GPT-4o output, cached
+    completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    student = relationship("Student")
+    schedule = relationship("ClassSchedule", back_populates="pre_class_tasks")
+
+    __table_args__ = (
+        Index("ix_pre_class_tasks_student_dt", "student_id", "class_datetime"),
     )

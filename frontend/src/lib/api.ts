@@ -7,6 +7,10 @@ import type {
   FacultyDashboard,
   Topic,
   Question,
+  ClassScheduleIn,
+  ClassScheduleOut,
+  PreClassBrief,
+  PostClassCheck,
 } from "./types";
 
 const API_BASE =
@@ -122,6 +126,49 @@ export interface TopicRoadmap {
 
 export const getTopicRoadmap = (studentId: number, topicId: number): Promise<TopicRoadmap> =>
   request(`/api/v1/metrics/student/${studentId}/topic/${topicId}/roadmap`);
+
+// ─── Schedule ─────────────────────────────────────────────────────────────────
+
+export const getStudentSchedule = (studentId: number): Promise<ClassScheduleOut[]> =>
+  request(`/api/v1/schedule/student/${studentId}`);
+
+export const saveStudentSchedule = (
+  studentId: number,
+  items: ClassScheduleIn[],
+): Promise<ClassScheduleOut[]> =>
+  request(`/api/v1/schedule/student/${studentId}`, {
+    method: "POST",
+    body: JSON.stringify(items),
+  });
+
+export const parseScheduleText = (
+  studentId: number,
+  text: string,
+): Promise<ClassScheduleIn[]> =>
+  request(`/api/v1/schedule/student/${studentId}/parse-text`, {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
+
+export const getPreClassBrief = (
+  studentId: number,
+  scheduleId: number,
+): Promise<PreClassBrief> =>
+  request(`/api/v1/schedule/student/${studentId}/brief/${scheduleId}`);
+
+export const completePreClassBrief = (
+  studentId: number,
+  scheduleId: number,
+): Promise<{ ok: boolean }> =>
+  request(`/api/v1/schedule/student/${studentId}/brief/${scheduleId}/complete`, {
+    method: "POST",
+  });
+
+export const getPostClassCheck = (
+  studentId: number,
+  scheduleId: number,
+): Promise<PostClassCheck> =>
+  request(`/api/v1/schedule/student/${studentId}/post-class/${scheduleId}`);
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
 

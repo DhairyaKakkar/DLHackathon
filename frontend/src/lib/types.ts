@@ -116,6 +116,59 @@ export interface StudentDashboard {
   overall_explanation: string;
 }
 
+// ─── Schedule ─────────────────────────────────────────────────────────────────
+
+export interface ClassScheduleIn {
+  subject_name: string;
+  topic_id: number | null;
+  days_of_week: string[];
+  class_time: string;
+  teacher_name: string | null;
+  room: string | null;
+}
+
+export interface ClassScheduleOut {
+  id: number;
+  subject_name: string;
+  topic_id: number | null;
+  topic_name: string | null;
+  days_of_week: string[];
+  class_time: string;
+  teacher_name: string | null;
+  room: string | null;
+  next_class_datetime: string | null;
+  days_until_next_class: number | null;
+  hours_until_next_class: number | null;
+  readiness_score: number | null;
+  is_urgent: boolean;
+  is_upcoming: boolean;
+}
+
+export interface PrepQuestion {
+  id: number;
+  question: string;
+  type: "MCQ" | "SHORT_TEXT";
+  options?: string[];
+  correct: string;
+  explanation: string;
+}
+
+export interface PreClassBrief {
+  readiness_score: number;
+  summary: string;
+  focus_areas: string[];
+  quick_review_points: string[];
+  prep_questions: PrepQuestion[];
+  estimated_prep_time: string;
+  personalized_tip: string;
+}
+
+export interface PostClassCheck {
+  summary: string;
+  check_questions: PrepQuestion[];
+  reflection_prompts: string[];
+}
+
 // ─── Faculty ──────────────────────────────────────────────────────────────────
 
 export interface HistogramBucket {

@@ -1,15 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { Clock, Shuffle, Target, BarChart3, ArrowRight, CheckCircle2, AlertCircle, TrendingUp } from "lucide-react";
+import { Clock, Shuffle, Target, BarChart3, ArrowRight, CheckCircle2, AlertCircle, TrendingUp, Zap, CalendarClock } from "lucide-react";
 import { cn, getDusTextClass } from "@/lib/utils";
-import type { TopicMetrics } from "@/lib/types";
+import type { TopicMetrics, ClassScheduleOut } from "@/lib/types";
 
 interface LearningPathProps {
   topics: TopicMetrics[];
   studentId: number;
   isFaculty: boolean;
   onTopicClick?: (topic: TopicMetrics) => void;
+  schedules?: ClassScheduleOut[];
 }
 
 type Tier = "fragile" | "partial" | "durable";
@@ -75,11 +76,13 @@ function TopicCard({
   studentId,
   isFaculty,
   onClick,
+  schedule,
 }: {
   topic: TopicMetrics;
   studentId: number;
   isFaculty: boolean;
   onClick?: (topic: TopicMetrics) => void;
+  schedule?: ClassScheduleOut;
 }) {
   const tier = getTier(topic.durable_understanding_score);
   const cfg = TIER_CONFIG[tier];
@@ -92,11 +95,40 @@ function TopicCard({
       className={cn("bg-white rounded-xl border shadow-sm p-4 flex flex-col gap-3 ring-1 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all", cfg.ring)}
       onClick={() => onClick?.(topic)}
     >
+      {/* Schedule urgency badges */}
+      {schedule && (
+        <div className="flex items-center gap-1.5 flex-wrap -mb-1">
+          {schedule.is_urgent && (
+            <span className="flex items-center gap-1 text-xs bg-red-50 text-red-600 border border-red-200 px-2 py-0.5 rounded-full font-semibold">
+              <Zap className="w-3 h-3" /> Class in {schedule.hours_until_next_class !== null && schedule.hours_until_next_class < 1 ? "< 1h" : `${Math.round(schedule.hours_until_next_class ?? 0)}h`}
+            </span>
+          )}
+          {!schedule.is_urgent && schedule.is_upcoming && (
+            <span className="flex items-center gap-1 text-xs bg-amber-50 text-amber-600 border border-amber-200 px-2 py-0.5 rounded-full font-medium">
+              <CalendarClock className="w-3 h-3" /> {schedule.days_until_next_class}d until class
+            </span>
+          )}
+          {schedule.readiness_score !== null && (
+            <span className={cn(
+              "text-xs px-2 py-0.5 rounded-full font-medium border",
+              schedule.readiness_score >= 75 ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+                : schedule.readiness_score >= 50 ? "bg-amber-50 text-amber-600 border-amber-200"
+                : "bg-red-50 text-red-600 border-red-200"
+            )}>
+              {Math.round(schedule.readiness_score)}% ready
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="text-sm font-semibold text-gray-800 leading-snug">{topic.topic_name}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{topic.total_attempts} attempts</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {topic.total_attempts} attempts
+            {schedule?.subject_name && <span className="text-indigo-400"> · {schedule.subject_name}</span>}
+          </p>
         </div>
         <div className="text-right shrink-0">
           <span className={cn("text-xl font-black tabular-nums", getDusTextClass(topic.durable_understanding_score))}>
@@ -152,10 +184,26 @@ function TopicCard({
   );
 }
 
-export default function LearningPath({ topics, studentId, isFaculty, onTopicClick }: LearningPathProps) {
+export default function LearningPath({ topics, studentId, isFaculty, onTopicClick, schedules = [] }: LearningPathProps) {
   if (topics.length === 0) return null;
 
-  const sorted = [...topics].sort((a, b) => a.durable_understanding_score - b.durable_understanding_score);
+  // Build a map from topic_id → schedule for urgency info
+  const scheduleByTopicId: Record<number, ClassScheduleOut> = {};
+  schedules.forEach(s => {
+    if (s.topic_id !== null) scheduleByTopicId[s.topic_id] = s;
+  });
+
+  // Sort: urgent classes first (within each tier), then by hours_until, then by DUS
+  function topicSortScore(t: TopicMetrics): number {
+    const s = scheduleByTopicId[t.topic_id];
+    if (s?.is_urgent) return -10000 + (s.hours_until_next_class ?? 0);
+    if (s?.is_upcoming) return -1000 + (s.days_until_next_class ?? 7) * 100;
+    return t.durable_understanding_score;
+  }
+
+  const sorted = [...topics].sort((a, b) => topicSortScore(a) - topicSortScore(b));
+
+  const urgentCount = sorted.filter(t => scheduleByTopicId[t.topic_id]?.is_urgent).length;
 
   const tiers: Tier[] = ["fragile", "partial", "durable"];
   const groups = tiers.map((tier) => ({
@@ -169,9 +217,18 @@ export default function LearningPath({ topics, studentId, isFaculty, onTopicClic
         <div>
           <h2 className="text-base font-semibold text-gray-700">Learning Roadmap</h2>
           <p className="text-xs text-gray-400 mt-0.5">
-            Topics grouped by mastery level — start from Focus Now
+            {urgentCount > 0
+              ? `${urgentCount} class${urgentCount !== 1 ? "es" : ""} today — urgent topics first`
+              : schedules.length > 0
+                ? "Sorted by upcoming class urgency + mastery level"
+                : "Topics grouped by mastery level — start from Focus Now"}
           </p>
         </div>
+        {schedules.length > 0 && (
+          <span className="text-xs text-indigo-600 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-full font-medium">
+            📅 {schedules.length} class{schedules.length !== 1 ? "es" : ""} scheduled
+          </span>
+        )}
       </div>
 
       <div className="flex flex-col gap-6">
@@ -201,6 +258,7 @@ export default function LearningPath({ topics, studentId, isFaculty, onTopicClic
                     studentId={studentId}
                     isFaculty={isFaculty}
                     onClick={onTopicClick}
+                    schedule={scheduleByTopicId[topic.topic_id]}
                   />
                 ))}
               </div>
