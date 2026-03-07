@@ -21,3 +21,6 @@ manim>=0.18.0
 
 # YouTube transcript fetching (Learn It + context enrichment)
 youtube-transcript-api>=1.2.4
+
+# PDF parsing — render every slide page as an image for GPT-4o vision
+pymupdf>=1.24.0

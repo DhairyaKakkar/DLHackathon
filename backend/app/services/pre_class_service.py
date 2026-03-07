@@ -8,11 +8,13 @@ Provides:
   - parse_schedule_from_image()     — GPT-4o Vision parses timetable photo
   - generate_pre_class_brief()      — GPT-4o personalized prep packet + quiz questions
   - generate_post_class_check()     — GPT-4o post-class knowledge check questions
+  - extract_content_from_pdf()      — PyMuPDF renders every slide page → GPT-4o reads all
   - extract_content_text()          — GPT-4o Vision extracts text from uploaded content image
   - generate_lesson_from_content()  — GPT-4o teaches key concepts from uploaded lecture content
   - generate_pre_lecture_quiz()     — GPT-4o generates assessment from lecture content
 """
 
+import base64
 import logging
 from datetime import datetime, timedelta
 from typing import Any, Optional
@@ -370,6 +372,84 @@ def generate_post_class_check(
         return __import__("json").loads(resp.choices[0].message.content)
     except Exception as exc:
         logger.warning("[PreClass] generate_post_class_check failed: %s", exc)
+        return None
+
+
+# ─── PDF: render all pages → GPT-4o reads every slide ────────────────────────
+
+MAX_PDF_PAGES = 40  # cap for very long decks
+
+
+def extract_content_from_pdf(pdf_b64: str) -> Optional[str]:
+    """
+    Convert every page of a PDF (lecture slides) to a PNG image using PyMuPDF,
+    then send all pages to GPT-4o vision in a single call for comprehensive extraction.
+    Also includes raw text layer as additional context.
+    """
+    if not settings.OPENAI_API_KEY:
+        return None
+    try:
+        import fitz  # pymupdf
+
+        pdf_bytes = base64.b64decode(pdf_b64)
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        total_pages = min(len(doc), MAX_PDF_PAGES)
+
+        # Extract raw text from all pages (cheap, fast)
+        raw_text_parts = []
+        for i in range(total_pages):
+            page_text = doc[i].get_text("text").strip()
+            if page_text:
+                raw_text_parts.append(f"[Slide {i + 1}]\n{page_text}")
+        raw_text = "\n\n".join(raw_text_parts)
+
+        # Render each page as PNG → base64
+        page_images_content = []
+        for i in range(total_pages):
+            page = doc[i]
+            # 150 DPI gives clear text without being enormous
+            mat = fitz.Matrix(150 / 72, 150 / 72)
+            pix = page.get_pixmap(matrix=mat, alpha=False)
+            png_bytes = pix.tobytes("png")
+            png_b64 = base64.b64encode(png_bytes).decode()
+            page_images_content.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/png;base64,{png_b64}",
+                    "detail": "high",
+                },
+            })
+
+        doc.close()
+
+        # Build message: system prompt text + all slide images
+        content: list[dict] = [
+            {
+                "type": "text",
+                "text": (
+                    f"These are {total_pages} slides from a lecture PDF. "
+                    "Read EVERY slide carefully and extract ALL content: "
+                    "headings, bullet points, definitions, formulas, diagrams (describe them), "
+                    "code snippets, tables, and any annotations. "
+                    "Preserve slide structure with [Slide N] markers. "
+                    "Be exhaustive — this will be used to teach a student the lecture content.\n\n"
+                    f"Raw text layer (may be incomplete for image-heavy slides):\n{raw_text[:4000]}"
+                ),
+            },
+            *page_images_content,
+        ]
+
+        client = _openai_client()
+        resp = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": content}],
+            max_tokens=8000,
+            temperature=0.1,
+        )
+        return resp.choices[0].message.content.strip()
+
+    except Exception as exc:
+        logger.warning("[PreClass] extract_content_from_pdf failed: %s", exc)
         return None
 
 

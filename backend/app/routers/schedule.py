@@ -28,6 +28,7 @@ from app.services.pre_class_service import (
     parse_schedule_from_text,
     parse_schedule_from_image,
     extract_content_text,
+    extract_content_from_pdf,
     generate_lesson_from_content,
     generate_pre_lecture_quiz,
 )
@@ -358,18 +359,23 @@ def upload_class_content(
     if not body.text and not body.image_b64:
         raise HTTPException(status_code=422, detail="Provide either text or image_b64")
 
-    # Extract text from image if needed
+    # Extract text from uploaded content
     content_text = body.text or ""
     if body.image_b64 and not body.text:
-        extracted = extract_content_text(body.image_b64, body.media_type)
+        if body.media_type == "application/pdf":
+            extracted = extract_content_from_pdf(body.image_b64)
+        else:
+            extracted = extract_content_text(body.image_b64, body.media_type)
         if not extracted:
-            raise HTTPException(status_code=503, detail="Could not extract text from image — check OPENAI_API_KEY")
+            raise HTTPException(status_code=503, detail="Could not extract content — check OPENAI_API_KEY")
         content_text = extracted
     elif body.image_b64 and body.text:
-        # Both provided — enrich text with image extraction
-        extracted = extract_content_text(body.image_b64, body.media_type)
+        if body.media_type == "application/pdf":
+            extracted = extract_content_from_pdf(body.image_b64)
+        else:
+            extracted = extract_content_text(body.image_b64, body.media_type)
         if extracted:
-            content_text = f"{body.text}\n\n[From image]\n{extracted}"
+            content_text = f"{body.text}\n\n[From uploaded file]\n{extracted}"
 
     # Delete any existing content upload for today to allow re-upload
     today = datetime.utcnow().date()

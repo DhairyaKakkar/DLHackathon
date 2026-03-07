@@ -143,7 +143,7 @@ export default function ContentLessonModal({
   onClose: () => void;
 }) {
   const [step, setStep] = useState<Step>("upload");
-  const [uploadMode, setUploadMode] = useState<"text" | "image">("text");
+  const [uploadMode, setUploadMode] = useState<"text" | "file">("text");
   const [textContent, setTextContent] = useState("");
   const [imageB64, setImageB64] = useState<string | null>(null);
   const [imageType, setImageType] = useState<string>("image/jpeg");
@@ -159,8 +159,8 @@ export default function ContentLessonModal({
     mutationFn: () =>
       uploadClassContent(studentId, scheduleId, {
         text: uploadMode === "text" ? textContent : undefined,
-        image_b64: uploadMode === "image" ? (imageB64 ?? undefined) : undefined,
-        media_type: uploadMode === "image" ? imageType : undefined,
+        image_b64: uploadMode === "file" ? (imageB64 ?? undefined) : undefined,
+        media_type: uploadMode === "file" ? imageType : undefined,
       }),
     onSuccess: async () => {
       // Fetch lesson immediately after upload
@@ -189,18 +189,26 @@ export default function ContentLessonModal({
   }
 
   function handleImageSelect(file: File) {
-    setImageType(file.type || "image/jpeg");
-    setImagePreview(URL.createObjectURL(file));
+    const type = file.type || (file.name.endsWith(".pdf") ? "application/pdf" : "image/jpeg");
+    setImageType(type);
     const reader = new FileReader();
     reader.onload = e => {
       const dataUrl = e.target?.result as string;
       setImageB64(dataUrl.split(",")[1]);
+      if (type === "application/pdf") {
+        // Store filename as "preview" for PDF — no object URL needed
+        setImagePreview(file.name);
+      } else {
+        setImagePreview(URL.createObjectURL(file));
+      }
     };
     reader.readAsDataURL(file);
   }
 
   const canUpload =
     uploadMode === "text" ? textContent.trim().length >= 20 : imageB64 !== null;
+
+  const isPdf = imageType === "application/pdf";
 
   // ─── Render upload step ──────────────────────────────────────────────────
 
@@ -227,15 +235,15 @@ export default function ContentLessonModal({
               <FileText className="w-3.5 h-3.5" /> Paste text
             </button>
             <button
-              onClick={() => setUploadMode("image")}
+              onClick={() => setUploadMode("file")}
               className={cn(
                 "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all",
-                uploadMode === "image"
+                uploadMode === "file"
                   ? "bg-white shadow-sm text-gray-900"
                   : "text-gray-500 hover:text-gray-700"
               )}
             >
-              <Image className="w-3.5 h-3.5" /> Upload slide/photo
+              <Upload className="w-3.5 h-3.5" /> Upload slides
             </button>
           </div>
 
@@ -249,13 +257,26 @@ export default function ContentLessonModal({
             />
           ) : (
             <div className="flex flex-col gap-3">
-              {imagePreview ? (
+              {imageB64 ? (
                 <div className="relative">
-                  <img
-                    src={imagePreview}
-                    alt="Uploaded content"
-                    className="w-full max-h-52 object-contain rounded-xl border border-gray-200 bg-gray-50"
-                  />
+                  {isPdf ? (
+                    /* PDF preview — show filename + page count hint */
+                    <div className="w-full rounded-xl border-2 border-indigo-200 bg-indigo-50 p-5 flex items-center gap-4">
+                      <div className="w-12 h-14 bg-red-500 rounded-lg flex items-center justify-center shrink-0">
+                        <span className="text-white text-xs font-bold">PDF</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{imagePreview}</p>
+                        <p className="text-xs text-indigo-600 mt-0.5">GPT-4o will read every slide</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <img
+                      src={imagePreview!}
+                      alt="Uploaded content"
+                      className="w-full max-h-52 object-contain rounded-xl border border-gray-200 bg-gray-50"
+                    />
+                  )}
                   <button
                     onClick={() => { setImagePreview(null); setImageB64(null); }}
                     className="absolute top-2 right-2 w-6 h-6 bg-white rounded-full shadow flex items-center justify-center text-gray-500 hover:text-gray-800"
@@ -270,15 +291,16 @@ export default function ContentLessonModal({
                 >
                   <Upload className="w-8 h-8 text-gray-300" />
                   <div className="text-center">
-                    <p className="text-sm font-medium text-gray-600">Upload lecture slide or whiteboard photo</p>
-                    <p className="text-xs text-gray-400 mt-1">PNG, JPG up to 10MB</p>
+                    <p className="text-sm font-medium text-gray-600">Upload lecture slides or photo</p>
+                    <p className="text-xs text-gray-400 mt-1">PDF (recommended) · PNG · JPG</p>
+                    <p className="text-xs text-indigo-500 mt-1 font-medium">GPT-4o reads every page of your PDF</p>
                   </div>
                 </div>
               )}
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="application/pdf,image/*"
                 className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleImageSelect(f); }}
               />
@@ -301,7 +323,7 @@ export default function ContentLessonModal({
           {uploadMutation.isPending ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              GPT-4o is processing your content...
+              {isPdf && imageB64 ? "GPT-4o is reading all your slides…" : "GPT-4o is processing your content…"}
             </>
           ) : (
             <>
