@@ -31,7 +31,7 @@ services:
       USE_LLM_VARIANTS: "false"
       USE_LLM_CONTEXT: "true"
       USE_LLM_GRADING: "true"
-      OPENAI_API_KEY: ""
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
       OPENAI_MODEL: "gpt-4o"
       LLM_CACHE_TTL_SECONDS: "${LLM_CACHE_TTL_SECONDS:-600}"
       CORS_ORIGINS: "*"
