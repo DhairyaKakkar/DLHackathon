@@ -377,7 +377,7 @@ def generate_post_class_check(
 
 # ─── PDF: render all pages → GPT-4o reads every slide ────────────────────────
 
-MAX_PDF_PAGES = 40  # cap for very long decks
+MAX_PDF_PAGES = 20  # cap — keep well within TPM limits
 
 
 def extract_content_from_pdf(pdf_b64: str) -> Optional[str]:
@@ -407,8 +407,8 @@ def extract_content_from_pdf(pdf_b64: str) -> Optional[str]:
         page_images_content = []
         for i in range(total_pages):
             page = doc[i]
-            # 150 DPI gives clear text without being enormous
-            mat = fitz.Matrix(150 / 72, 150 / 72)
+            # 100 DPI — enough for readable slide text at low detail
+            mat = fitz.Matrix(100 / 72, 100 / 72)
             pix = page.get_pixmap(matrix=mat, alpha=False)
             png_bytes = pix.tobytes("png")
             png_b64 = base64.b64encode(png_bytes).decode()
@@ -416,7 +416,7 @@ def extract_content_from_pdf(pdf_b64: str) -> Optional[str]:
                 "type": "image_url",
                 "image_url": {
                     "url": f"data:image/png;base64,{png_b64}",
-                    "detail": "high",
+                    "detail": "low",  # 85 tokens/page — fits within TPM limits
                 },
             })
 
