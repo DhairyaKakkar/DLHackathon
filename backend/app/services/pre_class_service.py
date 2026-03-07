@@ -108,7 +108,7 @@ def _openai_client():
 # ─── GPT-4o: parse schedule from text ────────────────────────────────────────
 
 _PARSE_SYSTEM = """\
-You are a school schedule parser. Extract structured class information from the student's description.
+You are a school schedule parser. Extract structured class information from the student's description or timetable image.
 Map each class to the closest topic from the provided list (topic_id = null if no match).
 
 Days must be lowercase: monday, tuesday, wednesday, thursday, friday, saturday, sunday
@@ -153,6 +153,52 @@ def parse_schedule_from_text(text: str, topic_names: list[str]) -> Optional[list
         return data.get("classes", [])
     except Exception as exc:
         logger.warning("[PreClass] parse_schedule failed: %s", exc)
+        return None
+
+
+def parse_schedule_from_image(image_b64: str, media_type: str, topic_names: list[str]) -> Optional[list[dict]]:
+    """
+    Use GPT-4o Vision to extract structured schedule data from a timetable photo.
+    image_b64: base64-encoded image (no data-URI prefix).
+    media_type: e.g. "image/jpeg", "image/png", "image/webp"
+    """
+    if not settings.OPENAI_API_KEY:
+        return None
+    try:
+        client = _openai_client()
+        resp = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": _PARSE_SYSTEM},
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                f"Available EALE topics: {', '.join(topic_names)}\n\n"
+                                "Extract every class from this timetable image. "
+                                "Return all classes you can identify with their days and times."
+                            ),
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{media_type};base64,{image_b64}",
+                                "detail": "high",
+                            },
+                        },
+                    ],
+                },
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=2000,
+            temperature=0.1,
+        )
+        data = __import__("json").loads(resp.choices[0].message.content)
+        return data.get("classes", [])
+    except Exception as exc:
+        logger.warning("[PreClass] parse_schedule_from_image failed: %s", exc)
         return None
 
 

@@ -150,6 +150,16 @@ export const parseScheduleText = (
     body: JSON.stringify({ text }),
   });
 
+export const parseScheduleImage = (
+  studentId: number,
+  imageB64: string,
+  mediaType: string,
+): Promise<ClassScheduleIn[]> =>
+  request(`/api/v1/schedule/student/${studentId}/parse-image`, {
+    method: "POST",
+    body: JSON.stringify({ image_b64: imageB64, media_type: mediaType }),
+  });
+
 export const getPreClassBrief = (
   studentId: number,
   scheduleId: number,

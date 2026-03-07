@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { X, Plus, Trash2, Loader2, Calendar, Sparkles, CheckCircle2, Clock } from "lucide-react";
-import { getTopics, saveStudentSchedule, parseScheduleText } from "@/lib/api";
+import { Plus, Trash2, Loader2, Calendar, Sparkles, CheckCircle2, Clock, Camera, Upload, ImageIcon } from "lucide-react";
+import { getTopics, saveStudentSchedule, parseScheduleText, parseScheduleImage } from "@/lib/api";
 import type { ClassScheduleIn, Topic } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -35,11 +35,16 @@ const EMPTY_CLASS: ClassScheduleIn = {
 
 export default function ScheduleOnboardingModal({ studentId, onComplete }: ScheduleOnboardingModalProps) {
   const [step, setStep] = useState<"intro" | "input" | "review" | "done">("intro");
-  const [inputMode, setInputMode] = useState<"manual" | "text">("manual");
+  const [inputMode, setInputMode] = useState<"manual" | "text" | "photo">("manual");
   const [freeText, setFreeText] = useState("");
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoB64, setPhotoB64] = useState<string>("");
+  const [photoMediaType, setPhotoMediaType] = useState<string>("image/jpeg");
   const [classes, setClasses] = useState<ClassScheduleIn[]>([{ ...EMPTY_CLASS }]);
   const [isParsing, setIsParsing] = useState(false);
   const [parseError, setParseError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const qc = useQueryClient();
   const { data: topics = [] } = useQuery<Topic[]>({
@@ -90,6 +95,39 @@ export default function ScheduleOnboardingModal({ studentId, onComplete }: Sched
       }
     } catch {
       setParseError("Parse failed. Please enter classes manually.");
+    } finally {
+      setIsParsing(false);
+    }
+  }
+
+  function handlePhotoSelect(file: File) {
+    setPhotoPreview(URL.createObjectURL(file));
+    setPhotoMediaType(file.type || "image/jpeg");
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      // strip the data-URI prefix to get raw base64
+      setPhotoB64(dataUrl.split(",")[1] ?? "");
+    };
+    reader.readAsDataURL(file);
+    setParseError("");
+  }
+
+  async function handleParsePhoto() {
+    if (!photoB64) return;
+    setIsParsing(true);
+    setParseError("");
+    try {
+      const parsed = await parseScheduleImage(studentId, photoB64, photoMediaType);
+      if (parsed.length === 0) {
+        setParseError("Couldn't find any classes in the photo. Try a clearer image.");
+      } else {
+        setClasses(parsed);
+        setInputMode("manual");
+        setParseError("");
+      }
+    } catch {
+      setParseError("Photo parse failed. Try a clearer image or use text entry.");
     } finally {
       setIsParsing(false);
     }
@@ -149,7 +187,7 @@ export default function ScheduleOnboardingModal({ studentId, onComplete }: Sched
               </div>
               <div className="grid grid-cols-3 gap-3 w-full">
                 {[
-                  { icon: "📅", title: "Urgency sorting", desc: "Roadmap reorders by what class is next" },
+                  { icon: "📷", title: "Photo upload", desc: "Snap your timetable — GPT-4o Vision reads it for you" },
                   { icon: "⚡", title: "Pre-class briefs", desc: "GPT-4o prep packet 24h before every class" },
                   { icon: "✅", title: "Post-class checks", desc: "Lock in what you learned right after class" },
                 ].map(f => (
@@ -181,17 +219,21 @@ export default function ScheduleOnboardingModal({ studentId, onComplete }: Sched
           {step === "input" && (
             <div className="flex flex-col gap-5">
               {/* Mode toggle */}
-              <div className="flex gap-2 bg-gray-100 rounded-xl p-1">
-                {(["manual", "text"] as const).map(m => (
+              <div className="flex gap-1.5 bg-gray-100 rounded-xl p-1">
+                {([
+                  { key: "manual", label: "✏️ Manual" },
+                  { key: "text", label: "✨ Paste text" },
+                  { key: "photo", label: "📷 Photo" },
+                ] as const).map(m => (
                   <button
-                    key={m}
-                    onClick={() => setInputMode(m)}
+                    key={m.key}
+                    onClick={() => setInputMode(m.key)}
                     className={cn(
-                      "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
-                      inputMode === m ? "bg-white shadow text-gray-900" : "text-gray-500"
+                      "flex-1 py-2 rounded-lg text-xs font-medium transition-all",
+                      inputMode === m.key ? "bg-white shadow text-gray-900" : "text-gray-500"
                     )}
                   >
-                    {m === "manual" ? "✏️ Manual entry" : "✨ Paste schedule text"}
+                    {m.label}
                   </button>
                 ))}
               </div>
@@ -215,6 +257,81 @@ export default function ScheduleOnboardingModal({ studentId, onComplete }: Sched
                     className="flex items-center justify-center gap-2 bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                   >
                     {isParsing ? <><Loader2 className="w-4 h-4 animate-spin" /> Parsing with GPT-4o…</> : <><Sparkles className="w-4 h-4" /> Parse my schedule</>}
+                  </button>
+                </div>
+              ) : inputMode === "photo" ? (
+                <div className="flex flex-col gap-3">
+                  <p className="text-xs text-gray-500">
+                    Take a photo or upload an image of your timetable. GPT-4o Vision will extract all classes automatically.
+                  </p>
+
+                  {/* Hidden file inputs */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoSelect(f); }}
+                  />
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoSelect(f); }}
+                  />
+
+                  {photoPreview ? (
+                    <div className="relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={photoPreview}
+                        alt="Timetable preview"
+                        className="w-full rounded-xl border border-gray-200 object-contain max-h-64"
+                      />
+                      <button
+                        onClick={() => { setPhotoPreview(null); setPhotoB64(""); setParseError(""); }}
+                        className="absolute top-2 right-2 bg-white border border-gray-200 rounded-full w-7 h-7 flex items-center justify-center text-gray-500 hover:text-red-500 text-xs shadow"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      className="border-2 border-dashed border-gray-200 rounded-xl p-8 flex flex-col items-center gap-3 cursor-pointer hover:border-gray-300 transition-colors"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <ImageIcon className="w-10 h-10 text-gray-300" />
+                      <p className="text-sm text-gray-400 text-center">Drop your timetable image here<br />or click to browse</p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="flex-1 flex items-center justify-center gap-2 border border-gray-200 rounded-xl py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                    >
+                      <Camera className="w-4 h-4" /> Camera
+                    </button>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex-1 flex items-center justify-center gap-2 border border-gray-200 rounded-xl py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                    >
+                      <Upload className="w-4 h-4" /> Upload
+                    </button>
+                  </div>
+
+                  {parseError && <p className="text-xs text-red-500">{parseError}</p>}
+
+                  <button
+                    onClick={handleParsePhoto}
+                    disabled={isParsing || !photoB64}
+                    className="flex items-center justify-center gap-2 bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                  >
+                    {isParsing
+                      ? <><Loader2 className="w-4 h-4 animate-spin" /> Scanning with GPT-4o Vision…</>
+                      : <><Sparkles className="w-4 h-4" /> Extract my schedule</>}
                   </button>
                 </div>
               ) : (

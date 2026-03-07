@@ -26,6 +26,7 @@ from app.services.pre_class_service import (
     get_next_class_datetime,
     get_readiness_score,
     parse_schedule_from_text,
+    parse_schedule_from_image,
 )
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,11 @@ class ClassScheduleOut(BaseModel):
 
 class ParseTextIn(BaseModel):
     text: str
+
+
+class ParseImageIn(BaseModel):
+    image_b64: str   # base64-encoded image, no data-URI prefix
+    media_type: str  # e.g. "image/jpeg", "image/png"
 
 
 # ─── Helper ───────────────────────────────────────────────────────────────────
@@ -156,6 +162,21 @@ def parse_schedule_text(
     parsed = parse_schedule_from_text(body.text, topic_names)
     if not parsed:
         raise HTTPException(status_code=422, detail="Could not parse schedule from text")
+    return parsed
+
+
+@router.post("/student/{student_id}/parse-image", response_model=list[ClassScheduleIn])
+def parse_schedule_image(
+    student_id: int,
+    body: ParseImageIn,
+    db: Session = Depends(get_db),
+):
+    """GPT-4o Vision extracts structured class info from a timetable photo."""
+    topics = db.query(Topic).all()
+    topic_names = [t.name for t in topics]
+    parsed = parse_schedule_from_image(body.image_b64, body.media_type, topic_names)
+    if not parsed:
+        raise HTTPException(status_code=422, detail="Could not extract schedule from image")
     return parsed
 
 

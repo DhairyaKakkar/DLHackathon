@@ -80,14 +80,14 @@ export default function StudentDashboardPage() {
     queryKey: ["schedule", studentId],
     queryFn: () => getStudentSchedule(studentId),
     enabled: !isNaN(studentId) && !checking && auth?.role === "student",
-    onSuccess: (data) => {
-      // Show onboarding if student has no schedule yet
-      if (!scheduleLoaded) {
-        setScheduleLoaded(true);
-        if (data.length === 0) setShowScheduleModal(true);
-      }
-    },
-  } as any);
+  });
+
+  useEffect(() => {
+    if (!scheduleLoaded && schedules !== undefined) {
+      setScheduleLoaded(true);
+      if ((schedules as ClassScheduleOut[]).length === 0) setShowScheduleModal(true);
+    }
+  }, [schedules, scheduleLoaded]);
 
   // Camera consent — check localStorage
   useEffect(() => {
