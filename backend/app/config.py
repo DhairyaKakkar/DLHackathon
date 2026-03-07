@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     USE_LLM_CONTEXT: bool = False
     USE_LLM_GRADING: bool = False
     OPENAI_API_KEY: Optional[str] = None
-    OPENAI_MODEL: str = "gpt-4.1-mini"
+    OPENAI_MODEL: str = "gpt-4o"
     LLM_CACHE_TTL_SECONDS: int = 600
     CORS_ORIGINS: str = "*"
     SCHEDULER_INTERVAL_SECONDS: int = 60

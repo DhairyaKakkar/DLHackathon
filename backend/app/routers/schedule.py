@@ -11,6 +11,7 @@ GET  /api/v1/schedule/student/{student_id}/post-class/{id} — post-class check
 
 import logging
 from datetime import datetime
+from types import SimpleNamespace
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -18,7 +19,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import ClassSchedule, PreClassTask, Student, Topic
+from app.models import Attempt, ClassSchedule, PreClassTask, Question, Student, Topic
 from app.services.metrics_service import compute_topic_metrics
 from app.services.pre_class_service import (
     generate_post_class_check,
@@ -83,6 +84,27 @@ class ContentUploadIn(BaseModel):
 
 # ─── Helper ───────────────────────────────────────────────────────────────────
 
+def _get_topic_metrics(db: Session, student_id: int, topic_id: int) -> Optional[SimpleNamespace]:
+    """Load and compute metrics for a single student × topic, returned as a SimpleNamespace."""
+    topic = db.query(Topic).filter(Topic.id == topic_id).first()
+    if not topic:
+        return None
+    q_all = db.query(Question).filter(Question.topic_id == topic_id).all()
+    orig_ids = {q.id for q in q_all if not q.is_variant}
+    var_ids = {q.id for q in q_all if q.is_variant}
+    all_ids = orig_ids | var_ids
+    if not all_ids:
+        return None
+    attempts = (
+        db.query(Attempt)
+        .filter(Attempt.student_id == student_id, Attempt.question_id.in_(all_ids))
+        .order_by(Attempt.created_at)
+        .all()
+    )
+    metrics_dict = compute_topic_metrics(topic.id, topic.name, orig_ids, var_ids, attempts)
+    return SimpleNamespace(**metrics_dict)
+
+
 def _build_schedule_out(s: ClassSchedule, db: Session, student_id: int) -> ClassScheduleOut:
     next_dt = get_next_class_datetime(s.days_of_week, s.class_time)
     now = datetime.utcnow()
@@ -95,8 +117,9 @@ def _build_schedule_out(s: ClassSchedule, db: Session, student_id: int) -> Class
         topic = db.query(Topic).filter(Topic.id == s.topic_id).first()
         topic_name = topic.name if topic else None
         try:
-            metrics = compute_topic_metrics(db, student_id, s.topic_id)
-            readiness = get_readiness_score(metrics.durable_understanding_score, days_until)
+            metrics = _get_topic_metrics(db, student_id, s.topic_id)
+            if metrics:
+                readiness = get_readiness_score(metrics.durable_understanding_score, days_until)
         except Exception:
             pass
 
@@ -228,7 +251,7 @@ def get_pre_class_brief(
     topic_metrics = None
     if schedule.topic_id:
         try:
-            topic_metrics = compute_topic_metrics(db, student_id, schedule.topic_id)
+            topic_metrics = _get_topic_metrics(db, student_id, schedule.topic_id)
         except Exception:
             pass
 
@@ -313,7 +336,7 @@ def get_post_class_check(
     topic_metrics = None
     if schedule.topic_id:
         try:
-            topic_metrics = compute_topic_metrics(db, student_id, schedule.topic_id)
+            topic_metrics = _get_topic_metrics(db, student_id, schedule.topic_id)
         except Exception:
             pass
 
