@@ -1258,7 +1258,7 @@
         </div>
         <button class="close-btn" title="Close">✕</button>
       </div>
-      <div class="spinner"><div class="spin"></div> Generating 5-chapter animated lesson… this takes up to 15 min ☕ go grab a coffee</div>
+      <div class="spinner"><div class="spin"></div> Generating explanation video…</div>
     `);
 
     const controller = new AbortController();
