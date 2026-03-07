@@ -966,7 +966,7 @@
                 if (absentMs >= ABSENT_QUIZ_MS) btn.classList.add("attention-absent");
               } else {
                 // Reading / taking notes — quiz directly after 60s (no question on screen)
-                if (absentMs >= 60000 && state === "idle") {
+                if (absentMs >= 60000 && state === "idle" && isAllowed(location.href)) {
                   _faceAbsentSince = null; // reset so it doesn't re-fire immediately
                   triggerQuiz();
                 }
@@ -1628,8 +1628,11 @@
   // ── Listen for messages from background / popup ───────────────────────────
 
   chrome.runtime.onMessage.addListener((msg) => {
-    if (msg.type === "EALE_TRIGGER_QUIZ" || msg.type === "EALE_AUTO_POP") {
-      triggerQuiz();
+    if (msg.type === "EALE_TRIGGER_QUIZ") {
+      triggerQuiz(); // user-initiated from popup — show allowlist error if needed
+    }
+    if (msg.type === "EALE_AUTO_POP") {
+      if (isAllowed(location.href)) triggerQuiz(); // auto alarm — silently skip non-allowlisted pages
     }
   });
 

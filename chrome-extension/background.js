@@ -40,6 +40,16 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
 
 const ALARM_NAME = "eale-auto-pop";
 
+// On service worker startup, sync alarm state with stored setting
+chrome.storage.sync.get(["autoPopMinutes"], ({ autoPopMinutes }) => {
+  const minutes = autoPopMinutes || 0;
+  chrome.alarms.clear(ALARM_NAME, () => {
+    if (minutes > 0) {
+      chrome.alarms.create(ALARM_NAME, { periodInMinutes: minutes, delayInMinutes: minutes });
+    }
+  });
+});
+
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "sync") return;
   if (!changes.autoPopMinutes) return;
