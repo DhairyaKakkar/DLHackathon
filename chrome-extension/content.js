@@ -35,7 +35,7 @@
   let _camNudgeTimer = null; // 60s interval — prompts user to enable camera during video
   let _attentionTimer = null, _faceAbsentSince = null;
   const CV_URL = "http://localhost:8001";
-  const ABSENT_QUIZ_MS = 20000;
+  const ABSENT_QUIZ_MS = 10000;
 
   // ── Video quiz state ───────────────────────────────────────────────────────
   let _activeVideo = null;         // video element currently being quizzed on
