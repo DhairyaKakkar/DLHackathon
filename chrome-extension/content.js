@@ -1339,6 +1339,7 @@
         <div style="display:flex;gap:6px;">
           <button id="eale-audio-btn">⏸ Pause</button>
           <button id="eale-fullscreen-btn" title="Open fullscreen" style="background:none;border:1.5px solid #e5e7eb;border-radius:7px;padding:5px 10px;font-size:12px;font-weight:600;color:#4b5563;cursor:pointer;">⛶ Fullscreen</button>
+          <button id="eale-open-tab-btn" title="Open in browser tab (persistent)" style="background:none;border:1.5px solid #e5e7eb;border-radius:7px;padding:5px 10px;font-size:12px;font-weight:600;color:#4b5563;cursor:pointer;">↑ Tab</button>
         </div>
         <button class="lesson-nav primary" id="ls-quiz-btn">Quiz me →</button>
       </div>
@@ -1487,6 +1488,9 @@
         if (videoEl.requestFullscreen) videoEl.requestFullscreen();
         else if (videoEl.webkitRequestFullscreen) videoEl.webkitRequestFullscreen();
       });
+      // Scene playlist has too many large video blobs to store — hide the tab button
+      const tabBtnSP = panel.querySelector("#eale-open-tab-btn");
+      if (tabBtnSP) tabBtnSP.style.display = "none";
 
       _lessonPlaybackCleanup = () => {
         sceneToken += 1;
@@ -1528,6 +1532,20 @@
         if (videoEl.requestFullscreen) videoEl.requestFullscreen();
         else if (videoEl.webkitRequestFullscreen) videoEl.webkitRequestFullscreen();
       });
+
+      // Open tab — save video src to storage and open persistent localhost:3000/lesson tab
+      panel.querySelector("#eale-open-tab-btn")?.addEventListener("click", () => {
+        chrome.storage.local.set({
+          eale_lesson_view: {
+            type: "video",
+            topic: lessonData.topic,
+            video_src: videoEl.src,
+            audio_b64: (!isManim && lessonData.audio_b64) ? lessonData.audio_b64 : null,
+          },
+        }, () => {
+          window.open("http://localhost:3000/lesson", "_blank");
+        });
+      });
     } else {
       // ── HTML animation: sandboxed iframe ──────────────────────────────────
       const iframe = document.createElement("iframe");
@@ -1543,6 +1561,20 @@
         const url = URL.createObjectURL(blob);
         window.open(url, "_blank");
         setTimeout(() => URL.revokeObjectURL(url), 10000);
+      });
+
+      // Open tab — save to storage and open persistent localhost:3000/lesson tab
+      panel.querySelector("#eale-open-tab-btn")?.addEventListener("click", () => {
+        chrome.storage.local.set({
+          eale_lesson_view: {
+            type: "html",
+            topic: lessonData.topic,
+            html: lessonData.html,
+            audio_b64: lessonData.audio_b64 || null,
+          },
+        }, () => {
+          window.open("http://localhost:3000/lesson", "_blank");
+        });
       });
 
       if (lessonData.audio_b64) {
@@ -1678,5 +1710,73 @@
       else stopVideoMonitoring();
     }
   });
+
+  // ── Lesson viewer page (localhost:3000/lesson) ────────────────────────────
+  // When the content script runs on the dedicated /lesson page, hide the EALE
+  // widget and inject the saved lesson from chrome.storage.local.
+
+  if (location.hostname === "localhost" && location.pathname === "/lesson") {
+    host.style.display = "none"; // hide EALE quiz widget on this page
+
+    chrome.storage.local.get(["eale_lesson_view"], ({ eale_lesson_view }) => {
+      if (!eale_lesson_view) return;
+      const root = document.getElementById("eale-lesson-root");
+      if (!root) return;
+
+      const lesson = eale_lesson_view;
+
+      // Build the header
+      const header = document.createElement("div");
+      header.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;";
+      header.innerHTML = `
+        <div>
+          <h1 style="font-size:22px;font-weight:700;color:#111;margin:0 0 4px;">${escHtml(lesson.topic)}</h1>
+          <p style="font-size:13px;color:#6b7280;margin:0;">AI-generated lesson · EALE</p>
+        </div>
+      `;
+      root.innerHTML = "";
+      root.appendChild(header);
+
+      if (lesson.type === "html") {
+        const iframe = document.createElement("iframe");
+        iframe.setAttribute("sandbox", "allow-scripts");
+        iframe.style.cssText = "width:100%;height:65vh;border:none;border-radius:12px;display:block;background:#0f172a;";
+        iframe.srcdoc = lesson.html;
+        root.appendChild(iframe);
+
+        if (lesson.audio_b64) {
+          const audioBar = document.createElement("div");
+          audioBar.style.cssText = "margin-top:16px;display:flex;align-items:center;gap:10px;";
+          const audioEl = new Audio(`data:audio/mp3;base64,${lesson.audio_b64}`);
+          audioEl.volume = 0.9;
+          const audioBtn = document.createElement("button");
+          audioBtn.textContent = "⏸ Pause narration";
+          audioBtn.style.cssText = "background:#111;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;";
+          audioBtn.addEventListener("click", () => {
+            if (audioEl.paused) { audioEl.play().catch(() => {}); audioBtn.textContent = "⏸ Pause narration"; }
+            else { audioEl.pause(); audioBtn.textContent = "▶ Resume narration"; }
+          });
+          audioBar.appendChild(audioBtn);
+          root.appendChild(audioBar);
+          setTimeout(() => audioEl.play().catch(() => {}), 500);
+        }
+      } else if (lesson.type === "video") {
+        const videoEl = document.createElement("video");
+        videoEl.src = lesson.video_src;
+        videoEl.controls = true;
+        videoEl.autoplay = true;
+        videoEl.style.cssText = "width:100%;height:65vh;border-radius:12px;display:block;background:#000;";
+        root.appendChild(videoEl);
+
+        if (lesson.audio_b64) {
+          const audioEl = new Audio(`data:audio/mp3;base64,${lesson.audio_b64}`);
+          audioEl.volume = 0.9;
+          videoEl.addEventListener("play",  () => audioEl.play().catch(() => {}));
+          videoEl.addEventListener("pause", () => audioEl.pause());
+          audioEl.play().catch(() => {});
+        }
+      }
+    });
+  }
 
 })();
