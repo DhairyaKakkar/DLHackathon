@@ -19,6 +19,7 @@
       --text-2:  #5c5c6e;
       --text-3:  #9e9eae;
       --accent:  #e8325a;
+      --indigo:  #4f46e5;
     }
 
     body {
@@ -39,140 +40,133 @@
     }
 
     .logo-box {
-      width: 28px;
-      height: 28px;
+      width: 28px; height: 28px;
       background: #111113;
       border-radius: 4px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
     }
-
     .logo-box span {
       font-family: "Fraunces", Georgia, serif;
-      font-style: italic;
-      font-weight: 800;
-      font-size: 15px;
-      color: #fff;
-      line-height: 1;
+      font-style: italic; font-weight: 800; font-size: 15px;
+      color: #fff; line-height: 1;
     }
-
     .header-text .title {
       font-family: "Fraunces", Georgia, serif;
-      font-style: italic;
-      font-weight: 800;
-      font-size: 14px;
-      color: var(--text);
-      letter-spacing: -0.01em;
+      font-style: italic; font-weight: 800; font-size: 14px;
+      color: var(--text); letter-spacing: -0.01em;
     }
-    .header-text .sub {
-      font-size: 10px;
-      color: var(--text-3);
-      margin-top: 1px;
+    .header-text .sub { font-size: 10px; color: var(--text-3); margin-top: 1px; }
+
+    /* ── Views ── */
+    .view { display: none; }
+    .view.active { display: block; }
+
+    /* ── Auth view ── */
+    .auth-body { padding: 18px 16px; display: flex; flex-direction: column; gap: 14px; }
+
+    .auth-tabs { display: flex; gap: 2px; background: #f1f0ee; border-radius: 8px; padding: 3px; }
+    .auth-tab {
+      flex: 1; padding: 7px 0; border: none; background: transparent;
+      border-radius: 6px; font-size: 12px; font-weight: 600;
+      color: var(--text-3); cursor: pointer; transition: all .12s;
+      font-family: "DM Sans", sans-serif;
     }
+    .auth-tab.active { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
 
-    .body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+    .auth-form { display: none; flex-direction: column; gap: 10px; }
+    .auth-form.active { display: flex; }
 
-    .student-row {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 12px;
+    .field-label {
+      font-size: 10px; font-weight: 600; color: var(--text-2);
+      text-transform: uppercase; letter-spacing: .05em;
+      display: block; margin-bottom: 4px;
     }
-
-    .student-label {
-      font-size: 9px;
-      color: var(--text-3);
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: .07em;
-      margin-bottom: 3px;
+    .field-input {
+      width: 100%; border: 1px solid var(--border);
+      border-radius: 7px; padding: 9px 11px;
+      font-size: 12px; font-family: "DM Sans", sans-serif;
+      color: var(--text); background: var(--surface);
+      outline: none; transition: border-color .12s;
     }
+    .field-input:focus { border-color: var(--indigo); }
+    .field-input.mono { font-family: "JetBrains Mono", monospace; font-size: 11px; }
 
-    .student-name  { font-size: 13px; font-weight: 600; color: var(--text); }
-    .student-key   { font-size: 10px; color: var(--text-3); font-family: "JetBrains Mono", monospace; margin-top: 1px; }
-
-    .quiz-btn {
-      background: #111113;
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      padding: 10px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      width: 100%;
+    .primary-btn {
+      background: #111113; color: #fff; border: none;
+      border-radius: 8px; padding: 10px; font-size: 13px;
+      font-weight: 600; cursor: pointer; width: 100%;
       transition: background .12s, transform .08s;
       font-family: "DM Sans", sans-serif;
     }
-    .quiz-btn:hover  { background: #2a2a32; }
-    .quiz-btn:active { transform: scale(0.98); }
-    .quiz-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+    .primary-btn:hover  { background: #2a2a32; }
+    .primary-btn:active { transform: scale(0.98); }
+    .primary-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+    .primary-btn.indigo { background: var(--indigo); }
+    .primary-btn.indigo:hover { background: #4338ca; }
 
     .status-msg { font-size: 11px; color: var(--text-3); text-align: center; min-height: 14px; }
     .status-msg.ok  { color: #15803d; }
     .status-msg.err { color: #dc2626; }
 
+    /* ── Logged-in view ── */
+    .main-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+
+    .student-row {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 12px;
+    }
+    .student-label {
+      font-size: 9px; color: var(--text-3); font-weight: 600;
+      text-transform: uppercase; letter-spacing: .07em; margin-bottom: 3px;
+    }
+    .student-name  { font-size: 13px; font-weight: 600; color: var(--text); }
+    .student-key   { font-size: 10px; color: var(--text-3); font-family: "JetBrains Mono", monospace; margin-top: 1px; }
+
     .divider { height: 1px; background: var(--border-quiet); }
 
-    .quick-select { display: flex; flex-direction: column; gap: 4px; }
-    .qs-label {
-      font-size: 9px; color: var(--text-3); font-weight: 600;
-      text-transform: uppercase; letter-spacing: .07em;
-    }
-    .qs-btns { display: flex; gap: 5px; }
-
-    .qs-btn {
-      flex: 1;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 7px 4px;
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--text-2);
-      cursor: pointer;
-      transition: all .12s;
-      text-align: center;
+    .dashboard-btn {
+      background: var(--indigo); color: #fff; border: none;
+      border-radius: 8px; padding: 10px; font-size: 13px;
+      font-weight: 600; cursor: pointer; width: 100%;
+      transition: background .12s, transform .08s;
       font-family: "DM Sans", sans-serif;
     }
-    .qs-btn:hover  { border-color: #111113; color: #111113; }
-    .qs-btn.active { border-color: #111113; background: #111113; color: #fff; }
+    .dashboard-btn:hover  { background: #4338ca; }
+    .dashboard-btn:active { transform: scale(0.98); }
 
-    .links { display: flex; gap: 5px; }
-
-    .link-btn {
-      flex: 1;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 7px 4px;
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--text-2);
-      cursor: pointer;
-      transition: all .12s;
-      text-align: center;
-      text-decoration: none;
-      display: block;
+    .switch-link {
+      text-align: center; font-size: 11px; color: var(--text-3);
+      cursor: pointer; transition: color .12s;
+      background: none; border: none; width: 100%; padding: 0;
       font-family: "DM Sans", sans-serif;
     }
-    .link-btn:hover { border-color: #111113; color: #111113; background: #fafaf8; }
+    .switch-link:hover { color: var(--text); }
 
+    /* ── Key reveal panel (post signup) ── */
+    .key-reveal {
+      background: #f0fdf4; border: 1px solid #bbf7d0;
+      border-radius: 8px; padding: 12px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .key-reveal-label { font-size: 10px; font-weight: 700; color: #15803d; }
+    .key-reveal-key {
+      font-family: "JetBrains Mono", monospace; font-size: 11px;
+      color: #166534; word-break: break-all; background: #dcfce7;
+      border-radius: 5px; padding: 6px 8px;
+    }
+    .key-reveal-note { font-size: 10px; color: #15803d; }
+
+    /* ── Footer ── */
     .footer {
       border-top: 1px solid var(--border-quiet);
       padding: 9px 16px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      display: flex; justify-content: space-between; align-items: center;
       background: var(--surface);
     }
-
     .footer a {
-      font-size: 11px;
-      color: var(--text-3);
-      text-decoration: none;
-      transition: color .12s;
+      font-size: 11px; color: var(--text-3);
+      text-decoration: none; transition: color .12s;
       font-family: "DM Sans", sans-serif;
     }
     .footer a:hover { color: var(--text); }
@@ -189,22 +183,63 @@
     </div>
   </div>
 
-  <div class="body">
-    <div class="student-row">
-      <div class="student-label">Active Student</div>
-      <div class="student-name" id="studentName">Loading…</div>
-      <div class="student-key" id="studentKey"></div>
+  <!-- ── Auth view (not logged in) ── -->
+  <div class="view" id="authView">
+    <div class="auth-body">
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-tab="login">Login</button>
+        <button class="auth-tab" data-tab="signup">Sign Up</button>
+      </div>
+
+      <!-- Login form -->
+      <div class="auth-form active" id="loginForm">
+        <div>
+          <label class="field-label">API Key</label>
+          <input class="field-input mono" id="loginKey" type="text" placeholder="e.g. student-alice-key" />
+        </div>
+        <button class="primary-btn" id="loginBtn">Login</button>
+        <div class="status-msg" id="loginStatus"></div>
+      </div>
+
+      <!-- Sign up form -->
+      <div class="auth-form" id="signupForm">
+        <div>
+          <label class="field-label">Full name</label>
+          <input class="field-input" id="signupName" type="text" placeholder="Your name" />
+        </div>
+        <div>
+          <label class="field-label">Email</label>
+          <input class="field-input" id="signupEmail" type="email" placeholder="you@example.com" />
+        </div>
+        <button class="primary-btn indigo" id="signupBtn">Create account</button>
+        <div class="status-msg" id="signupStatus"></div>
+        <!-- Key reveal (shown after signup) -->
+        <div class="key-reveal" id="keyReveal" style="display:none;">
+          <div class="key-reveal-label">Your API Key</div>
+          <div class="key-reveal-key" id="newApiKey"></div>
+          <div class="key-reveal-note">Save this key — you'll need it to log in.</div>
+          <button class="primary-btn" id="continueBtn">Continue to Dashboard</button>
+        </div>
+      </div>
     </div>
+  </div>
 
-    <button class="quiz-btn" id="quizBtn">Trigger EALE Check on Current Tab</button>
-    <div class="status-msg" id="statusMsg"></div>
+  <!-- ── Logged-in view ── -->
+  <div class="view" id="mainView">
+    <div class="main-body">
+      <div class="student-row">
+        <div class="student-label">Logged in as</div>
+        <div class="student-name" id="studentName">—</div>
+        <div class="student-key" id="studentKey"></div>
+      </div>
 
-    <div class="divider"></div>
+      <button class="primary-btn" id="quizBtn">Trigger EALE Check on Current Tab</button>
+      <div class="status-msg" id="quizStatus"></div>
 
-    <div class="links">
-      <a class="link-btn" href="http://localhost:3000/student/1" target="_blank">Alice</a>
-      <a class="link-btn" href="http://localhost:3000/student/2" target="_blank">Bob</a>
-      <a class="link-btn" href="http://localhost:3000/faculty" target="_blank">Faculty</a>
+      <div class="divider"></div>
+
+      <button class="dashboard-btn" id="dashboardBtn">Open Dashboard</button>
+      <button class="switch-link" id="switchBtn">Switch account / Logout</button>
     </div>
   </div>
 

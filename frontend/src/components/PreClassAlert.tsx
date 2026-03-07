@@ -4,11 +4,12 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Zap, BookOpen, X, Loader2, ChevronRight, CheckCircle2,
-  Clock, Target, Brain, Lightbulb, RotateCcw
+  Clock, Target, Brain, Lightbulb, RotateCcw, Upload
 } from "lucide-react";
 import { getPreClassBrief, completePreClassBrief } from "@/lib/api";
 import type { ClassScheduleOut, PreClassBrief, PrepQuestion } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import ContentLessonModal from "./ContentLessonModal";
 
 // ─── Readiness ring ───────────────────────────────────────────────────────────
 
@@ -319,12 +320,16 @@ export default function PreClassAlert({
   studentId: number;
 }) {
   const [openBriefId, setOpenBriefId] = useState<number | null>(null);
+  const [openContentId, setOpenContentId] = useState<number | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
   if (!urgentClasses.length || dismissed) return null;
 
   const primary = urgentClasses[0];
   const openSchedule = urgentClasses.find(c => c.id === openBriefId);
+  const openContentSchedule = urgentClasses.find(c => c.id === openContentId);
+  const showContentUpload =
+    primary.days_until_next_class !== null && primary.days_until_next_class <= 2;
 
   return (
     <>
@@ -358,6 +363,15 @@ export default function PreClassAlert({
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {showContentUpload && (
+            <button
+              onClick={() => setOpenContentId(primary.id)}
+              className="flex items-center gap-1.5 bg-indigo-600 text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-indigo-700 transition-colors"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Upload content
+            </button>
+          )}
           <button
             onClick={() => setOpenBriefId(primary.id)}
             className="flex items-center gap-1.5 bg-amber-600 text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-amber-700 transition-colors"
@@ -378,6 +392,15 @@ export default function PreClassAlert({
           subject={openSchedule.subject_name}
           hoursUntil={openSchedule.hours_until_next_class ?? 24}
           onClose={() => setOpenBriefId(null)}
+        />
+      )}
+
+      {openContentSchedule && openContentId !== null && (
+        <ContentLessonModal
+          studentId={studentId}
+          scheduleId={openContentId}
+          subjectName={openContentSchedule.subject_name}
+          onClose={() => setOpenContentId(null)}
         />
       )}
     </>

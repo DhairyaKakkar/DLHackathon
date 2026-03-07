@@ -76,18 +76,18 @@ export default function StudentDashboardPage() {
     enabled: !isNaN(studentId) && !checking,
   });
 
-  const { data: schedules = [] } = useQuery<ClassScheduleOut[]>({
+  const { data: schedules = [], isSuccess: scheduleFetched } = useQuery<ClassScheduleOut[]>({
     queryKey: ["schedule", studentId],
     queryFn: () => getStudentSchedule(studentId),
     enabled: !isNaN(studentId) && !checking && auth?.role === "student",
   });
 
   useEffect(() => {
-    if (!scheduleLoaded && schedules !== undefined) {
+    if (!scheduleLoaded && scheduleFetched) {
       setScheduleLoaded(true);
       if ((schedules as ClassScheduleOut[]).length === 0) setShowScheduleModal(true);
     }
-  }, [schedules, scheduleLoaded]);
+  }, [schedules, scheduleLoaded, scheduleFetched]);
 
   // Camera consent — check localStorage
   useEffect(() => {

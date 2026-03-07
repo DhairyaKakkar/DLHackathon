@@ -11,6 +11,8 @@ import type {
   ClassScheduleOut,
   PreClassBrief,
   PostClassCheck,
+  ContentLesson,
+  PreLectureQuiz,
 } from "./types";
 
 const API_BASE =
@@ -179,6 +181,28 @@ export const getPostClassCheck = (
   scheduleId: number,
 ): Promise<PostClassCheck> =>
   request(`/api/v1/schedule/student/${studentId}/post-class/${scheduleId}`);
+
+export const uploadClassContent = (
+  studentId: number,
+  scheduleId: number,
+  payload: { text?: string; image_b64?: string; media_type?: string },
+): Promise<{ ok: boolean; content_length: number }> =>
+  request(`/api/v1/schedule/student/${studentId}/class-content/${scheduleId}`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+export const getClassLesson = (
+  studentId: number,
+  scheduleId: number,
+): Promise<ContentLesson> =>
+  request(`/api/v1/schedule/student/${studentId}/class-lesson/${scheduleId}`);
+
+export const getPreLectureQuiz = (
+  studentId: number,
+  scheduleId: number,
+): Promise<PreLectureQuiz> =>
+  request(`/api/v1/schedule/student/${studentId}/pre-lecture-quiz/${scheduleId}`);
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
 

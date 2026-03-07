@@ -258,11 +258,14 @@ def get_extension_context(
                     mode="LLM",
                     context_hint=payload.context_hint,
                 )
-        # Rate-limited or LLM failed — fall through to keyword / random
-        # NOTE: Due tasks (retests) are intentionally excluded from the extension.
-        # They are surfaced only in the student dashboard (/student/:id/tasks).
+        # LLM enabled but failed or rate-limited — don't serve stale unrelated questions
+        if settings.USE_LLM_CONTEXT and settings.OPENAI_API_KEY:
+            raise HTTPException(
+                status_code=503,
+                detail="Could not generate a question for this page right now. Try again in a moment.",
+            )
 
-    # ── 2: Keyword-inferred topic ─────────────────────────────────────────────
+    # ── 2: Keyword-inferred topic (only when LLM is disabled) ─────────────────
     page_content = payload.page_text or payload.page_url
     inferred_topic = _infer_topic_keyword(page_content, db)
     if inferred_topic:
@@ -281,7 +284,7 @@ def get_extension_context(
                 context_hint=payload.context_hint,
             )
 
-    # ── 3: Random fallback ────────────────────────────────────────────────────
+    # ── 3: Random fallback (only when LLM is disabled) ────────────────────────
     q = _pick_any_question(student.id, db)
     if not q:
         raise HTTPException(status_code=404, detail="No questions available")

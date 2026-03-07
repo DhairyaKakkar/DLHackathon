@@ -42,6 +42,10 @@
   let _ealePausingVideo = false;   // true while EALE itself triggers .pause()
   let _videoDifficultyTimer = null;
   let _videoPrevTime = 0;
+  let _videoRewindCount = 0;       // rewinds since last quiz
+  let _videoPauseCount = 0;        // manual pauses since last quiz
+  const VIDEO_REWIND_QUIZ_THRESHOLD = 4;  // need this many rewinds...
+  const VIDEO_PAUSE_QUIZ_THRESHOLD  = 3;  // ...and this many pauses → 1 question
   const VIDEO_DIFFICULTY_INTERVAL_MS = 3 * 60 * 1000; // 3 min passive scan
   const VIDEO_REWIND_THRESHOLD_S = 5;                  // >5s backward = rewind
 
@@ -506,10 +510,9 @@
   };
 
   const VIDEO_HINT_LABEL = {
-    REWIND:           "⏪ Rewound",
-    MANUAL_PAUSE:     "⏸ Paused",
-    DIFFICULTY:       "🧠 Dense Concept",
-    ATTENTION_RETURN: "👀 Welcome Back",
+    REWIND_PAUSE_PATTERN: "🔁 Rewound & paused a lot",
+    DIFFICULTY:           "🧠 Dense Concept",
+    ATTENTION_RETURN:     "👀 Welcome Back",
   };
 
   function header(topicName, taskType, mode, contextHint) {
@@ -1036,14 +1039,16 @@
       function onPause() {
         if (_ealePausingVideo) return; // EALE itself paused — ignore
         if (state !== "idle") return;
-        triggerVideoQuiz(video, "MANUAL_PAUSE");
+        _videoPauseCount++;
+        _checkVideoQuizThreshold(video);
       }
 
       function onSeeked() {
         const now = video.currentTime;
         if (_videoPrevTime - now > VIDEO_REWIND_THRESHOLD_S) {
           // Rewound significantly
-          if (state === "idle") triggerVideoQuiz(video, "REWIND");
+          _videoRewindCount++;
+          _checkVideoQuizThreshold(video);
         }
         _videoPrevTime = now;
       }
@@ -1052,11 +1057,17 @@
         _videoPrevTime = video.currentTime;
       }
 
+      function onEnded() {
+        _videoRewindCount = 0;
+        _videoPauseCount  = 0;
+      }
+
       video.addEventListener("pause",      onPause);
       video.addEventListener("seeked",     onSeeked);
       video.addEventListener("timeupdate", onTimeUpdate);
+      video.addEventListener("ended",      onEnded);
 
-      _videoHandlers = { video, onPause, onSeeked, onTimeUpdate };
+      _videoHandlers = { video, onPause, onSeeked, onTimeUpdate, onEnded };
 
       // Passive difficulty scan every 3 min
       _videoDifficultyTimer = setInterval(async () => {
@@ -1097,16 +1108,28 @@
     }
   }
 
+  function _checkVideoQuizThreshold(video) {
+    if (state !== "idle") return;
+    if (_videoRewindCount >= VIDEO_REWIND_QUIZ_THRESHOLD && _videoPauseCount >= VIDEO_PAUSE_QUIZ_THRESHOLD) {
+      _videoRewindCount = 0;
+      _videoPauseCount  = 0;
+      triggerVideoQuiz(video, "REWIND_PAUSE_PATTERN");
+    }
+  }
+
   function stopVideoMonitoring() {
     if (_videoHandlers) {
-      const { video, onPause, onSeeked, onTimeUpdate } = _videoHandlers;
+      const { video, onPause, onSeeked, onTimeUpdate, onEnded } = _videoHandlers;
       video.removeEventListener("pause",      onPause);
       video.removeEventListener("seeked",     onSeeked);
       video.removeEventListener("timeupdate", onTimeUpdate);
+      video.removeEventListener("ended",      onEnded);
       _videoHandlers = null;
     }
     if (_videoDifficultyTimer) { clearInterval(_videoDifficultyTimer); _videoDifficultyTimer = null; }
     _videoPrevTime = 0;
+    _videoRewindCount = 0;
+    _videoPauseCount  = 0;
     stopCamNudge();
   }
 
@@ -1126,10 +1149,9 @@
 
     // Build context hint label shown in loading screen
     const hintLabel = {
-      REWIND:           "You rewound — checking understanding",
-      MANUAL_PAUSE:     "You paused — quick check",
-      DIFFICULTY:       "Dense concept detected",
-      ATTENTION_RETURN: "Welcome back — what did you miss?",
+      REWIND_PAUSE_PATTERN: "You've rewound & paused a lot — let's check understanding",
+      DIFFICULTY:           "Dense concept detected",
+      ATTENTION_RETURN:     "Welcome back — what did you miss?",
     }[reason] || "Video learning check";
 
     await triggerQuiz({
@@ -1264,7 +1286,7 @@
     } catch (err) {
       clearTimeout(timer);
       showError(err.name === "AbortError"
-        ? "Lesson generation timed out while building the Sora scene playlist."
+        ? "Lesson generation timed out (20 min). The animation pipeline may still be running — try again shortly."
         : `Could not generate lesson: ${err.message}`);
     }
   }

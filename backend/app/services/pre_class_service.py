@@ -2,11 +2,15 @@
 Pre-class brief and schedule intelligence service.
 
 Provides:
-  - get_next_class_datetime()  — next real-calendar occurrence of a recurring class
-  - get_readiness_score()      — urgency-weighted DUS
-  - parse_schedule_from_text() — GPT-4o parses natural language schedule
-  - generate_pre_class_brief() — GPT-4o personalized prep packet + quiz questions
-  - generate_post_class_check()— GPT-4o post-class knowledge check questions
+  - get_next_class_datetime()       — next real-calendar occurrence of a recurring class
+  - get_readiness_score()           — urgency-weighted DUS
+  - parse_schedule_from_text()      — GPT-4o parses natural language schedule
+  - parse_schedule_from_image()     — GPT-4o Vision parses timetable photo
+  - generate_pre_class_brief()      — GPT-4o personalized prep packet + quiz questions
+  - generate_post_class_check()     — GPT-4o post-class knowledge check questions
+  - extract_content_text()          — GPT-4o Vision extracts text from uploaded content image
+  - generate_lesson_from_content()  — GPT-4o teaches key concepts from uploaded lecture content
+  - generate_pre_lecture_quiz()     — GPT-4o generates assessment from lecture content
 """
 
 import logging
@@ -366,4 +370,168 @@ def generate_post_class_check(
         return __import__("json").loads(resp.choices[0].message.content)
     except Exception as exc:
         logger.warning("[PreClass] generate_post_class_check failed: %s", exc)
+        return None
+
+
+# ─── GPT-4o: extract text from uploaded content image ────────────────────────
+
+def extract_content_text(image_b64: str, media_type: str) -> Optional[str]:
+    """
+    Use GPT-4o Vision to extract all readable text + structure from an uploaded
+    lecture slide, whiteboard photo, or handwritten notes image.
+    """
+    if not settings.OPENAI_API_KEY:
+        return None
+    try:
+        client = _openai_client()
+        resp = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "This is an image of lecture slides, notes, or a whiteboard. "
+                                "Extract ALL text, headings, bullet points, formulas, and diagrams descriptions "
+                                "in full detail. Preserve the structure as much as possible. "
+                                "Output plain text — no JSON, no markdown fencing."
+                            ),
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{media_type};base64,{image_b64}",
+                                "detail": "high",
+                            },
+                        },
+                    ],
+                }
+            ],
+            max_tokens=3000,
+            temperature=0.1,
+        )
+        return resp.choices[0].message.content.strip()
+    except Exception as exc:
+        logger.warning("[PreClass] extract_content_text failed: %s", exc)
+        return None
+
+
+# ─── GPT-4o: generate lesson from uploaded lecture content ───────────────────
+
+_LESSON_FROM_CONTENT_SYSTEM = """\
+You are an expert university tutor. A student has shared the content that will be covered in
+their upcoming lecture. Your job is to teach them the key concepts BEFORE the class so they
+can participate confidently and absorb more during the lecture.
+
+Return ONLY valid JSON:
+{
+  "title": "<Lesson title, e.g. 'Pre-lecture: Binary Search Trees'>",
+  "overview": "<2-3 sentence overview of what this lecture covers and why it matters>",
+  "key_concepts": [
+    {
+      "name": "<Concept name>",
+      "explanation": "<Clear, concise explanation (3-5 sentences)>",
+      "example": "<A concrete, specific example that makes it click>",
+      "common_mistake": "<The most common misconception students have about this>"
+    }
+  ],
+  "quick_facts": [
+    "<Key formula, definition, or rule to memorise>",
+    "<Key formula, definition, or rule to memorise>",
+    "<Key formula, definition, or rule to memorise>",
+    "<Key formula, definition, or rule to memorise>"
+  ],
+  "lecture_tip": "<One specific tip for getting the most out of the upcoming lecture>",
+  "estimated_time": "<e.g. 20 minutes>"
+}
+
+Include 3-6 key_concepts. Be concrete and pedagogically sound.
+"""
+
+
+def generate_lesson_from_content(content_text: str, subject_name: str) -> Optional[dict]:
+    """GPT-4o generates a structured pre-lecture lesson from uploaded content."""
+    if not settings.OPENAI_API_KEY:
+        return None
+    try:
+        client = _openai_client()
+        resp = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": _LESSON_FROM_CONTENT_SYSTEM},
+                {"role": "user", "content": (
+                    f"Subject: {subject_name}\n\n"
+                    f"Lecture content uploaded by student:\n{content_text[:8000]}\n\n"
+                    "Teach me the key concepts from this lecture content so I'm prepared for class."
+                )},
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=3000,
+            temperature=0.4,
+        )
+        return __import__("json").loads(resp.choices[0].message.content)
+    except Exception as exc:
+        logger.warning("[PreClass] generate_lesson_from_content failed: %s", exc)
+        return None
+
+
+# ─── GPT-4o: pre-lecture assessment from uploaded content ────────────────────
+
+_PRE_LECTURE_QUIZ_SYSTEM = """\
+You are an expert assessment designer. Based on the lecture content provided, generate
+5-7 diagnostic questions that test whether the student understands the prerequisite knowledge
+AND can engage with the new material. Mix foundational checks with anticipatory questions.
+
+Return ONLY valid JSON:
+{
+  "questions": [
+    {
+      "id": 1,
+      "question": "<question text>",
+      "type": "MCQ",
+      "options": ["A. ...", "B. ...", "C. ...", "D. ..."],
+      "correct": "<exact option text>",
+      "explanation": "<why this is correct, and what it connects to in the lecture>"
+    },
+    {
+      "id": 2,
+      "question": "<question text>",
+      "type": "SHORT_TEXT",
+      "correct": "<model answer>",
+      "explanation": "<explanation>"
+    }
+  ],
+  "passing_score": 70,
+  "diagnostic_note": "<1-sentence note on what a low score means vs a high score for this lecture>"
+}
+
+For SHORT_TEXT questions, omit "options". Mix MCQ and SHORT_TEXT. Calibrate to the lecture level.
+"""
+
+
+def generate_pre_lecture_quiz(content_text: str, subject_name: str) -> Optional[dict]:
+    """GPT-4o generates a pre-lecture self-assessment from uploaded content."""
+    if not settings.OPENAI_API_KEY:
+        return None
+    try:
+        client = _openai_client()
+        resp = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": _PRE_LECTURE_QUIZ_SYSTEM},
+                {"role": "user", "content": (
+                    f"Subject: {subject_name}\n\n"
+                    f"Lecture content:\n{content_text[:8000]}\n\n"
+                    "Generate a pre-lecture diagnostic assessment for this content."
+                )},
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=2500,
+            temperature=0.4,
+        )
+        return __import__("json").loads(resp.choices[0].message.content)
+    except Exception as exc:
+        logger.warning("[PreClass] generate_pre_lecture_quiz failed: %s", exc)
         return None

@@ -1,5 +1,5 @@
 import secrets
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -7,6 +7,17 @@ from app.models import Student
 from app.schemas import StudentCreate, StudentOut
 
 router = APIRouter(prefix="/students", tags=["Students"])
+
+
+@router.get("/me", response_model=StudentOut)
+def get_me(
+    x_api_key: str = Header(..., description="Student API key"),
+    db: Session = Depends(get_db),
+):
+    student = db.query(Student).filter(Student.api_key == x_api_key).first()
+    if not student:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    return student
 
 
 @router.post("/", response_model=StudentOut, status_code=201)

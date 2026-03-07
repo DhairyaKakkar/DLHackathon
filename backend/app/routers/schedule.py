@@ -27,6 +27,9 @@ from app.services.pre_class_service import (
     get_readiness_score,
     parse_schedule_from_text,
     parse_schedule_from_image,
+    extract_content_text,
+    generate_lesson_from_content,
+    generate_pre_lecture_quiz,
 )
 
 logger = logging.getLogger(__name__)
@@ -68,6 +71,13 @@ class ParseTextIn(BaseModel):
 class ParseImageIn(BaseModel):
     image_b64: str   # base64-encoded image, no data-URI prefix
     media_type: str  # e.g. "image/jpeg", "image/png"
+
+
+class ContentUploadIn(BaseModel):
+    # One of these must be provided
+    text: Optional[str] = None          # plain text / pasted notes / topic list
+    image_b64: Optional[str] = None     # base64 image of slides / whiteboard
+    media_type: str = "image/jpeg"      # used only when image_b64 is set
 
 
 # ─── Helper ───────────────────────────────────────────────────────────────────
@@ -323,3 +333,200 @@ def get_post_class_check(
     db.add(task)
     db.commit()
     return check
+
+
+# ─── Content upload + pre-lecture lesson ──────────────────────────────────────
+
+@router.post("/student/{student_id}/class-content/{schedule_id}")
+def upload_class_content(
+    student_id: int,
+    schedule_id: int,
+    body: ContentUploadIn,
+    db: Session = Depends(get_db),
+):
+    """
+    Student uploads lecture content (text paste or image) 2 days before class.
+    Extracts and stores the content text for lesson + quiz generation.
+    """
+    schedule = db.query(ClassSchedule).filter(
+        ClassSchedule.id == schedule_id,
+        ClassSchedule.student_id == student_id,
+    ).first()
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Schedule entry not found")
+
+    if not body.text and not body.image_b64:
+        raise HTTPException(status_code=422, detail="Provide either text or image_b64")
+
+    # Extract text from image if needed
+    content_text = body.text or ""
+    if body.image_b64 and not body.text:
+        extracted = extract_content_text(body.image_b64, body.media_type)
+        if not extracted:
+            raise HTTPException(status_code=503, detail="Could not extract text from image — check OPENAI_API_KEY")
+        content_text = extracted
+    elif body.image_b64 and body.text:
+        # Both provided — enrich text with image extraction
+        extracted = extract_content_text(body.image_b64, body.media_type)
+        if extracted:
+            content_text = f"{body.text}\n\n[From image]\n{extracted}"
+
+    # Delete any existing content upload for today to allow re-upload
+    today = datetime.utcnow().date()
+    existing = (
+        db.query(PreClassTask)
+        .filter(
+            PreClassTask.student_id == student_id,
+            PreClassTask.schedule_id == schedule_id,
+            PreClassTask.task_type == "CONTENT_UPLOAD",
+        )
+        .order_by(PreClassTask.created_at.desc())
+        .first()
+    )
+    if existing and existing.created_at.date() == today:
+        existing.brief_data = {"content_text": content_text}
+        db.commit()
+    else:
+        next_dt = get_next_class_datetime(schedule.days_of_week, schedule.class_time)
+        task = PreClassTask(
+            student_id=student_id,
+            schedule_id=schedule_id,
+            task_type="CONTENT_UPLOAD",
+            class_datetime=next_dt or datetime.utcnow(),
+            brief_data={"content_text": content_text},
+        )
+        db.add(task)
+        db.commit()
+
+    return {"ok": True, "content_length": len(content_text)}
+
+
+@router.get("/student/{student_id}/class-lesson/{schedule_id}")
+def get_class_lesson(
+    student_id: int,
+    schedule_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    Generate (and cache) a pre-lecture lesson from the student's uploaded content.
+    Must call upload_class_content first.
+    """
+    schedule = db.query(ClassSchedule).filter(
+        ClassSchedule.id == schedule_id,
+        ClassSchedule.student_id == student_id,
+    ).first()
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Schedule entry not found")
+
+    # Get uploaded content
+    content_upload = (
+        db.query(PreClassTask)
+        .filter(
+            PreClassTask.student_id == student_id,
+            PreClassTask.schedule_id == schedule_id,
+            PreClassTask.task_type == "CONTENT_UPLOAD",
+        )
+        .order_by(PreClassTask.created_at.desc())
+        .first()
+    )
+    if not content_upload or not content_upload.brief_data:
+        raise HTTPException(status_code=404, detail="No content uploaded for this class. Upload content first.")
+
+    content_text = content_upload.brief_data.get("content_text", "")
+    if not content_text:
+        raise HTTPException(status_code=422, detail="Uploaded content is empty")
+
+    # Return cached lesson if generated today
+    today = datetime.utcnow().date()
+    existing = (
+        db.query(PreClassTask)
+        .filter(
+            PreClassTask.student_id == student_id,
+            PreClassTask.schedule_id == schedule_id,
+            PreClassTask.task_type == "CONTENT_LESSON",
+        )
+        .order_by(PreClassTask.created_at.desc())
+        .first()
+    )
+    if existing and existing.brief_data and existing.created_at.date() == today:
+        return existing.brief_data
+
+    lesson = generate_lesson_from_content(content_text, schedule.subject_name)
+    if not lesson:
+        raise HTTPException(status_code=503, detail="Could not generate lesson — check OPENAI_API_KEY")
+
+    next_dt = get_next_class_datetime(schedule.days_of_week, schedule.class_time)
+    task = PreClassTask(
+        student_id=student_id,
+        schedule_id=schedule_id,
+        task_type="CONTENT_LESSON",
+        class_datetime=next_dt or datetime.utcnow(),
+        brief_data=lesson,
+    )
+    db.add(task)
+    db.commit()
+    return lesson
+
+
+@router.get("/student/{student_id}/pre-lecture-quiz/{schedule_id}")
+def get_pre_lecture_quiz(
+    student_id: int,
+    schedule_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    Generate (and cache) a pre-lecture diagnostic assessment from uploaded content.
+    """
+    schedule = db.query(ClassSchedule).filter(
+        ClassSchedule.id == schedule_id,
+        ClassSchedule.student_id == student_id,
+    ).first()
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Schedule entry not found")
+
+    # Get uploaded content
+    content_upload = (
+        db.query(PreClassTask)
+        .filter(
+            PreClassTask.student_id == student_id,
+            PreClassTask.schedule_id == schedule_id,
+            PreClassTask.task_type == "CONTENT_UPLOAD",
+        )
+        .order_by(PreClassTask.created_at.desc())
+        .first()
+    )
+    if not content_upload or not content_upload.brief_data:
+        raise HTTPException(status_code=404, detail="No content uploaded for this class. Upload content first.")
+
+    content_text = content_upload.brief_data.get("content_text", "")
+
+    # Return cached quiz if generated today
+    today = datetime.utcnow().date()
+    existing = (
+        db.query(PreClassTask)
+        .filter(
+            PreClassTask.student_id == student_id,
+            PreClassTask.schedule_id == schedule_id,
+            PreClassTask.task_type == "PRE_LECTURE_QUIZ",
+        )
+        .order_by(PreClassTask.created_at.desc())
+        .first()
+    )
+    if existing and existing.brief_data and existing.created_at.date() == today:
+        return existing.brief_data
+
+    quiz = generate_pre_lecture_quiz(content_text, schedule.subject_name)
+    if not quiz:
+        raise HTTPException(status_code=503, detail="Could not generate quiz — check OPENAI_API_KEY")
+
+    next_dt = get_next_class_datetime(schedule.days_of_week, schedule.class_time)
+    task = PreClassTask(
+        student_id=student_id,
+        schedule_id=schedule_id,
+        task_type="PRE_LECTURE_QUIZ",
+        class_datetime=next_dt or datetime.utcnow(),
+        brief_data=quiz,
+    )
+    db.add(task)
+    db.commit()
+    return quiz

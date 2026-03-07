@@ -169,6 +169,39 @@ export interface PostClassCheck {
   reflection_prompts: string[];
 }
 
+// ─── Content Lesson (pre-lecture upload flow) ─────────────────────────────────
+
+export interface ContentKeyConcept {
+  name: string;
+  explanation: string;
+  example: string;
+  common_mistake: string;
+}
+
+export interface ContentLesson {
+  title: string;
+  overview: string;
+  key_concepts: ContentKeyConcept[];
+  quick_facts: string[];
+  lecture_tip: string;
+  estimated_time: string;
+}
+
+export interface PreLectureQuizQuestion {
+  id: number;
+  question: string;
+  type: "MCQ" | "SHORT_TEXT";
+  options?: string[];
+  correct: string;
+  explanation: string;
+}
+
+export interface PreLectureQuiz {
+  questions: PreLectureQuizQuestion[];
+  passing_score: number;
+  diagnostic_note: string;
+}
+
 // ─── Faculty ──────────────────────────────────────────────────────────────────
 
 export interface HistogramBucket {
