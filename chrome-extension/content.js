@@ -388,7 +388,9 @@
   }
 
   function isAllowed(url) {
-    // Always allow local files and localhost
+    // Never run on the EALE dashboard itself
+    if (url.includes("localhost:3000")) return false;
+    // Allow local files and other localhost ports (testbench, etc.)
     if (url.startsWith("file://") || url.includes("localhost")) return true;
     const { allowlist = [] } = settings;
     for (const pattern of allowlist) {
